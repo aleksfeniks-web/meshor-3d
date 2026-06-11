@@ -622,7 +622,12 @@
         const REPLICATE_API_BASE = '/api/replicate';
 
         // Load saved API token from localStorage
-        const savedToken = localStorage.getItem('replicate_api_token') || '';
+        let savedToken = '';
+        try {
+            savedToken = localStorage.getItem('replicate_api_token') || '';
+        } catch (e) {
+            console.warn('localStorage is blocked or not supported:', e);
+        }
         
         // GLTFLoader for loading 3D models from Replicate
         class SimpleGLTFLoader {
@@ -2603,7 +2608,11 @@ ${colors ? "" : "map_Kd textura.png\nbump -bm 1.0 textura_normal.png\nmap_Pr tex
 
         // Save token on change
         replicateTokenInput.addEventListener('input', (e) => {
-            localStorage.setItem('replicate_api_token', e.target.value.trim());
+            try {
+                localStorage.setItem('replicate_api_token', e.target.value.trim());
+            } catch (err) {
+                console.warn('localStorage is blocked or not supported:', err);
+            }
             checkReplicateBtn();
         });
 
