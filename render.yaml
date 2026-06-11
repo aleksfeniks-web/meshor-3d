@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: meshor-3d
+    runtime: node
+    repo: https://github.com/aleksfeniks-web/meshor-3d
+    branch: main
+    buildCommand: npm install
+    startCommand: node server.js
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
