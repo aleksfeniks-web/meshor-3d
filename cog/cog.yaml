@@ -27,7 +27,6 @@ build:
     - "scikit-image"
   run:
     - "git clone https://github.com/VAST-AI-Research/TripoSR.git /tmp/TripoSR && cp -r /tmp/TripoSR/tsr ."
-    - "cp isosurface.py tsr/models/isosurface.py"
     - "python -c 'from huggingface_hub import hf_hub_download; hf_hub_download(repo_id=\"stabilityai/TripoSR\", filename=\"config.yaml\"); hf_hub_download(repo_id=\"stabilityai/TripoSR\", filename=\"model.ckpt\")'"
     - "python -c 'from rembg import new_session; new_session(\"u2net\")'"
 
