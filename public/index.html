@@ -1,0 +1,2369 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Real 3D Mesh Generator - Convierte imágenes a modelos 3D reales</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Inter', system-ui, sans-serif;
+            background: #0f0f1a;
+            overflow: hidden;
+        }
+
+        /* Canvas 3D */
+        #canvas3d {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* UI Overlay */
+        .ui {
+            position: fixed;
+            z-index: 20;
+            pointer-events: none;
+        }
+
+        /* Header */
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(135deg, rgba(76, 29, 149, 0.95), rgba(139, 92, 246, 0.95));
+            backdrop-filter: blur(20px);
+            padding: 16px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 30;
+            pointer-events: auto;
+            border-bottom: 1px solid rgba(168, 85, 247, 0.4);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            font-size: 28px;
+            animation: glow 2s infinite;
+        }
+
+        @keyframes glow {
+            0%, 100% { filter: drop-shadow(0 0 5px #a855f7); }
+            50% { filter: drop-shadow(0 0 15px #c084fc); }
+        }
+
+        .logo h1 {
+            background: linear-gradient(135deg, #fff, #e9d5ff);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            font-size: 1.5rem;
+        }
+
+        .badge {
+            background: rgba(168, 85, 247, 0.3);
+            padding: 6px 14px;
+            border-radius: 30px;
+            color: #e9d5ff;
+            font-size: 0.8rem;
+            border: 1px solid rgba(168, 85, 247, 0.5);
+        }
+
+        /* Panel de control flotante */
+        .control-panel {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: rgba(20, 12, 36, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 20px;
+            min-width: 260px;
+            border: 1px solid rgba(168, 85, 247, 0.4);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            pointer-events: auto;
+            z-index: 30;
+        }
+
+        .control-panel h3 {
+            color: #c084fc;
+            font-size: 0.9rem;
+            margin-bottom: 16px;
+        }
+
+        .control-group {
+            margin-bottom: 16px;
+        }
+
+        .control-group label {
+            display: flex;
+            justify-content: space-between;
+            color: #ddd;
+            font-size: 0.8rem;
+            margin-bottom: 8px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 4px;
+            background: #4c1d95;
+            border-radius: 5px;
+            -webkit-appearance: none;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #c084fc;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 8px #a855f7;
+        }
+
+        .btn {
+            width: 100%;
+            background: linear-gradient(135deg, #7c3aed, #a855f7);
+            border: none;
+            color: white;
+            padding: 12px;
+            border-radius: 40px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: transform 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(168, 85, 247, 0.4);
+        }
+
+        /* Zona de subida */
+        .upload-area {
+            position: fixed;
+            bottom: 24px;
+            left: 24px;
+            background: rgba(20, 12, 36, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 16px 24px;
+            border: 2px dashed #a855f7;
+            cursor: pointer;
+            transition: all 0.3s;
+            pointer-events: auto;
+            z-index: 30;
+            text-align: center;
+        }
+
+        .upload-area:hover {
+            border-color: #c084fc;
+            background: rgba(139, 92, 246, 0.2);
+            transform: scale(1.02);
+        }
+
+        .upload-area .icon {
+            font-size: 32px;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .upload-area p {
+            color: #e9d5ff;
+            font-size: 0.85rem;
+        }
+
+        .upload-area small {
+            color: #888;
+            font-size: 0.7rem;
+        }
+
+        /* Loading */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(10px);
+            z-index: 100;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            pointer-events: auto;
+        }
+
+        .spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(168, 85, 247, 0.3);
+            border-top-color: #a855f7;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-overlay p {
+            color: white;
+            margin-top: 20px;
+        }
+
+        /* Modal de éxito */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(12px);
+            z-index: 200;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            pointer-events: auto;
+        }
+
+        .modal-content {
+            background: linear-gradient(135deg, #1a1030, #0a0a1a);
+            border-radius: 32px;
+            padding: 32px;
+            max-width: 400px;
+            text-align: center;
+            border: 1px solid #a855f7;
+        }
+
+        .modal-content h3 {
+            color: #c084fc;
+            margin-bottom: 16px;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin-top: 24px;
+        }
+
+        .modal-btn {
+            padding: 10px 24px;
+            border-radius: 40px;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .modal-btn.primary {
+            background: linear-gradient(135deg, #7c3aed, #a855f7);
+            color: white;
+        }
+
+        .stats {
+            position: fixed;
+            top: 80px;
+            right: 24px;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(10px);
+            padding: 8px 16px;
+            border-radius: 20px;
+            color: #c084fc;
+            font-size: 0.7rem;
+            font-family: monospace;
+            pointer-events: none;
+            z-index: 30;
+        }
+
+        select {
+            width: 100%;
+            background: rgba(30, 20, 50, 0.85);
+            border: 1px solid rgba(168, 85, 247, 0.4);
+            color: #e9d5ff;
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            outline: none;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 4px;
+        }
+        select:focus {
+            border-color: #c084fc;
+            box-shadow: 0 0 10px rgba(168, 85, 247, 0.4);
+        }
+        select option {
+            background: #150c26;
+            color: #e9d5ff;
+        }
+        .btn-secondary {
+            width: 48%;
+            background: rgba(124, 58, 237, 0.15);
+            border: 1px solid rgba(168, 85, 247, 0.35);
+            color: #e9d5ff;
+            padding: 10px;
+            border-radius: 40px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-secondary:hover {
+            background: rgba(124, 58, 237, 0.4);
+            border-color: #c084fc;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(168, 85, 247, 0.2);
+        }
+        .filter-row {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 8px;
+            margin-bottom: 12px;
+        }
+        .section-title {
+            color: #c084fc;
+            font-size: 0.72rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-top: 14px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid rgba(168, 85, 247, 0.2);
+            padding-bottom: 4px;
+        }
+
+        @media (max-width: 768px) {
+            .control-panel { bottom: 16px; right: 16px; padding: 12px; min-width: 200px; }
+            .upload-area { bottom: 16px; left: 16px; padding: 12px 16px; }
+            .header { padding: 12px 16px; }
+            .logo h1 { font-size: 1.2rem; }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas3d"></canvas>
+ 
+    <div class="header">
+        <div class="logo">
+            <div class="logo-icon">🔮</div>
+            <h1>REAL 3D MESH</h1>
+        </div>
+        <div class="badge">⚡ Conversor real de imágenes a modelos 3D</div>
+    </div>
+ 
+    <div class="upload-area" id="uploadArea">
+        <div class="icon">📸</div>
+        <p>Subir imagen</p>
+        <small>JPG, PNG, WEBP</small>
+        <input type="file" id="fileInput" accept="image/*" style="display: none;">
+    </div>
+ 
+    <div class="control-panel" style="min-width: 300px;">
+        <h3>🎮 Controles del modelo 3D</h3>
+        
+        <div class="section-title">1. Generación de Malla</div>
+        <div class="control-group">
+            <label>🧬 Tipo de malla</label>
+            <select id="meshTypeSelector">
+                <option value="inflated" selected>Personaje Redondeado (3D Inflado)</option>
+                <option value="voxel">Bloques (Vóxeles)</option>
+                <option value="heightmap">Mapa de Alturas (Plaqueta/Moneda)</option>
+                <option value="smooth">Contorno Extruido (Plano/Suave)</option>
+            </select>
+        </div>
+        <div class="control-group" id="inflationProfileGroup">
+            <label>🎈 Perfil de Inflado</label>
+            <select id="inflationProfileSelector">
+                <option value="dome" selected>Domo (Semiesférico)</option>
+                <option value="capsule">Cápsula (Centro plano)</option>
+                <option value="cone">Cónico (Puntiagudo)</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label>🖼️ Fondo a eliminar</label>
+            <select id="bgColorSelector">
+                <option value="auto" selected>Auto-detectar (Esquina)</option>
+                <option value="black">Negro</option>
+                <option value="white">Blanco</option>
+                <option value="none">Ninguno (Mantener todo)</option>
+            </select>
+        </div>
+        <div class="control-group" id="bgToleranceGroup">
+            <label>🧼 Tolerancia de fondo <span id="bgToleranceValue">30</span></label>
+            <input type="range" id="bgToleranceSlider" min="0" max="200" step="1" value="30">
+        </div>
+        <div class="control-group">
+            <label>📐 Altura de extrusión <span id="heightValue">0.60</span></label>
+            <input type="range" id="heightSlider" min="0.05" max="1.5" step="0.01" value="0.6">
+        </div>
+        <div class="control-group">
+            <label>🌋 Relieve (Normal Map) <span id="normalStrengthValue">1.00</span></label>
+            <input type="range" id="normalStrengthSlider" min="0.00" max="2.00" step="0.05" value="1.00">
+        </div>
+        <div class="control-group">
+            <label>🔍 Umbral de detección <span id="thresholdValue">100</span></label>
+            <input type="range" id="thresholdSlider" min="0" max="255" step="1" value="100">
+        </div>
+
+        <div class="section-title">2. Filtros de Procesamiento</div>
+        <div class="control-group" id="smoothnessGroup">
+            <label>✨ Parámetro de Filtro <span id="smoothValue">0.5</span></label>
+            <input type="range" id="smoothSlider" min="0.01" max="1" step="0.01" value="0.5">
+        </div>
+        <div class="filter-row">
+            <button class="btn-secondary" id="laplacianFilterBtn" title="Suavizado difuso uniforme">🌀 Laplacian</button>
+            <button class="btn-secondary" id="bilateralFilterBtn" title="Suavizado que conserva aristas">📐 Bilateral</button>
+        </div>
+
+        <div class="section-title">3. Visualización y Acciones</div>
+        <div class="control-group">
+            <label>🎨 Modo de visualización</label>
+            <select id="visualModeSelector">
+                <option value="textured" selected>Imagen (Texturado)</option>
+                <option value="gaussian_curvature">Curvatura Gaussiana</option>
+                <option value="mean_curvature">Curvatura Media</option>
+                <option value="normals">Normales de Superficie</option>
+                <option value="wireframe">Estructura de Alambre (Wireframe)</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label>📦 Formato de exportación</label>
+            <select id="exportFormatSelector">
+                <option value="glb" selected>GLB (Todo en uno para Unity/Blender)</option>
+                <option value="zip">ZIP (OBJ + MTL + Texturas PBR)</option>
+            </select>
+        </div>
+        <button class="btn" id="exportBtn" style="margin-top: 12px;">💾 Exportar modelo</button>
+    </div>
+
+    <div class="stats" id="stats">
+        📊 Listo para generar
+    </div>
+
+    <div class="loading-overlay" id="loading">
+        <div class="spinner"></div>
+        <p>🔄 Generando malla 3D real...</p>
+        <p style="font-size: 0.8rem; margin-top: 8px;">Analizando contornos y creando geometría</p>
+    </div>
+
+    <div class="modal" id="modal">
+        <div class="modal-content">
+            <div style="font-size: 48px;">🎉</div>
+            <h3>¡Modelo 3D generado!</h3>
+            <p>Tu imagen ha sido convertida en un objeto 3D real con <strong id="polyCount">0</strong> polígonos</p>
+            <div class="modal-buttons">
+                <button class="modal-btn primary" id="downloadBtn">Descargar OBJ</button>
+                <button class="modal-btn" id="closeModalBtn">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.128.0/build/three.module.js"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        // --- Configuración de la escena 3D ---
+        const canvas = document.getElementById('canvas3d');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0f0f1a);
+        scene.fog = new THREE.FogExp2(0x0f0f1a, 0.02);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(2, 1.8, 3);
+        camera.lookAt(0, 0.3, 0);
+
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+        // Luces para buena visualización
+        const ambientLight = new THREE.AmbientLight(0x3a2a5a);
+        scene.add(ambientLight);
+        
+        const mainLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        mainLight.position.set(3, 5, 2);
+        mainLight.castShadow = true;
+        mainLight.receiveShadow = false;
+        scene.add(mainLight);
+        
+        const fillLight = new THREE.PointLight(0xc084fc, 0.5);
+        fillLight.position.set(1, 2, 2);
+        scene.add(fillLight);
+        
+        const backLight = new THREE.PointLight(0x7c3aed, 0.4);
+        backLight.position.set(-1, 1.5, -2);
+        scene.add(backLight);
+        
+        const rimLight = new THREE.PointLight(0xa855f7, 0.6);
+        rimLight.position.set(1.5, 1, 2);
+        scene.add(rimLight);
+        
+        // Grid de referencia
+        const gridHelper = new THREE.GridHelper(5, 20, 0x7c3aed, 0x4c1d95);
+        gridHelper.position.y = -0.4;
+        gridHelper.material.transparent = true;
+        gridHelper.material.opacity = 0.3;
+        scene.add(gridHelper);
+
+        // --- Variables principales ---
+        let currentMesh = null;
+        let currentImageData = null;
+        let currentTexture = null;
+        
+        // Controles de cámara con mouse
+        let isDragging = false;
+        let lastMouseX = 0, lastMouseY = 0;
+        let cameraTheta = 0.8;
+        let cameraPhi = 0.5;
+        let cameraRadius = 3.5;
+        
+        function updateCameraPosition() {
+            const x = cameraRadius * Math.sin(cameraTheta) * Math.cos(cameraPhi);
+            const y = cameraRadius * Math.sin(cameraPhi);
+            const z = cameraRadius * Math.cos(cameraTheta) * Math.cos(cameraPhi);
+            camera.position.set(x, y + 0.5, z);
+            camera.lookAt(0, 0.3, 0);
+        }
+        
+        renderer.domElement.addEventListener('mousedown', (e) => {
+            if (e.button === 0) {
+                isDragging = true;
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+                renderer.domElement.style.cursor = 'grabbing';
+            }
+        });
+        
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            const deltaX = e.clientX - lastMouseX;
+            const deltaY = e.clientY - lastMouseY;
+            cameraTheta += deltaX * 0.01;
+            cameraPhi += deltaY * 0.01;
+            cameraPhi = Math.max(0.2, Math.min(1.2, cameraPhi));
+            updateCameraPosition();
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+        });
+        
+        window.addEventListener('mouseup', () => {
+            isDragging = false;
+            renderer.domElement.style.cursor = 'default';
+        });
+        
+        updateCameraPosition();
+        
+        // ==========================================
+        // Algoritmos de Procesamiento de Mallas (iheartmesh.pdf)
+        // ==========================================
+
+        // Estructura de adyacencia (V -> V y V -> F)
+        function buildAdjacency(geometry) {
+            const indices = geometry.index ? geometry.index.array : null;
+            const positionAttr = geometry.attributes.position;
+            const vertexCount = positionAttr.count;
+            
+            const adjVertices = Array.from({ length: vertexCount }, () => new Set());
+            const adjFaces = Array.from({ length: vertexCount }, () => new Set());
+            
+            if (indices) {
+                const faceCount = indices.length / 3;
+                for (let f = 0; f < faceCount; f++) {
+                    const i0 = indices[f * 3];
+                    const i1 = indices[f * 3 + 1];
+                    const i2 = indices[f * 3 + 2];
+                    
+                    adjVertices[i0].add(i1); adjVertices[i0].add(i2);
+                    adjVertices[i1].add(i0); adjVertices[i1].add(i2);
+                    adjVertices[i2].add(i0); adjVertices[i2].add(i1);
+                    
+                    adjFaces[i0].add(f);
+                    adjFaces[i1].add(f);
+                    adjFaces[i2].add(f);
+                }
+            } else {
+                const faceCount = vertexCount / 3;
+                for (let f = 0; f < faceCount; f++) {
+                    const i0 = f * 3;
+                    const i1 = f * 3 + 1;
+                    const i2 = f * 3 + 2;
+                    
+                    adjVertices[i0].add(i1); adjVertices[i0].add(i2);
+                    adjVertices[i1].add(i0); adjVertices[i1].add(i2);
+                    adjVertices[i2].add(i0); adjVertices[i2].add(i1);
+                    
+                    adjFaces[i0].add(f);
+                    adjFaces[i1].add(f);
+                    adjFaces[i2].add(f);
+                }
+            }
+            return { adjVertices, adjFaces };
+        }
+
+        // Longitud promedio de aristas para parámetro sigmaC de bilateral
+        function getAverageEdgeLength(geometry) {
+            const positionAttr = geometry.attributes.position;
+            const indices = geometry.index ? geometry.index.array : null;
+            if (!indices) return 0.1;
+            
+            let sumDist = 0;
+            let count = 0;
+            const sampleSize = Math.min(500, indices.length / 3);
+            for (let i = 0; i < sampleSize; i++) {
+                const idx = Math.floor(Math.random() * (indices.length / 3)) * 3;
+                const i0 = indices[idx];
+                const i1 = indices[idx + 1];
+                const i2 = indices[idx + 2];
+                
+                const p0 = new THREE.Vector3(positionAttr.getX(i0), positionAttr.getY(i0), positionAttr.getZ(i0));
+                const p1 = new THREE.Vector3(positionAttr.getX(i1), positionAttr.getY(i1), positionAttr.getZ(i1));
+                const p2 = new THREE.Vector3(positionAttr.getX(i2), positionAttr.getY(i2), positionAttr.getZ(i2));
+                
+                sumDist += p0.distanceTo(p1) + p1.distanceTo(p2) + p2.distanceTo(p0);
+                count += 3;
+            }
+            return count > 0 ? (sumDist / count) : 0.15;
+        }
+
+        // Filtro de Suavizado Laplaciano
+        function applyLaplacianSmoothing(geometry, lambda = 0.5) {
+            const positionAttr = geometry.attributes.position;
+            const vertexCount = positionAttr.count;
+            const { adjVertices } = buildAdjacency(geometry);
+            
+            const newPositions = new Float32Array(vertexCount * 3);
+            
+            for (let i = 0; i < vertexCount; i++) {
+                const neighbors = adjVertices[i];
+                const xi = positionAttr.getX(i);
+                const yi = positionAttr.getY(i);
+                const zi = positionAttr.getZ(i);
+                
+                if (neighbors.size === 0) {
+                    newPositions[i * 3] = xi;
+                    newPositions[i * 3 + 1] = yi;
+                    newPositions[i * 3 + 2] = zi;
+                    continue;
+                }
+                
+                let sumX = 0, sumY = 0, sumZ = 0;
+                for (const j of neighbors) {
+                    sumX += positionAttr.getX(j);
+                    sumY += positionAttr.getY(j);
+                    sumZ += positionAttr.getZ(j);
+                }
+                
+                const avgX = sumX / neighbors.size;
+                const avgY = sumY / neighbors.size;
+                const avgZ = sumZ / neighbors.size;
+                
+                newPositions[i * 3] = xi + lambda * (avgX - xi);
+                newPositions[i * 3 + 1] = yi + lambda * (avgY - yi);
+                newPositions[i * 3 + 2] = zi + lambda * (avgZ - zi);
+            }
+            
+            for (let i = 0; i < vertexCount; i++) {
+                positionAttr.setXYZ(i, newPositions[i * 3], newPositions[i * 3 + 1], newPositions[i * 3 + 2]);
+            }
+            positionAttr.needsUpdate = true;
+            geometry.computeVertexNormals();
+        }
+
+        // Filtro de Suavizado Bilateral (preserva aristas)
+        function applyBilateralSmoothing(geometry, factor = 0.5) {
+            const positionAttr = geometry.attributes.position;
+            const vertexCount = positionAttr.count;
+            
+            geometry.computeVertexNormals();
+            const normalAttr = geometry.attributes.normal;
+            
+            const { adjVertices } = buildAdjacency(geometry);
+            const avgEdgeLen = getAverageEdgeLength(geometry);
+            
+            const sigmaC = avgEdgeLen * 2.0; 
+            const sigmaS = 0.1 * factor + 0.005; 
+            
+            const sigmaC2 = 2 * sigmaC * sigmaC;
+            const sigmaS2 = 2 * sigmaS * sigmaS;
+            
+            const newPositions = new Float32Array(vertexCount * 3);
+            
+            for (let i = 0; i < vertexCount; i++) {
+                const neighbors = adjVertices[i];
+                const xi = new THREE.Vector3(positionAttr.getX(i), positionAttr.getY(i), positionAttr.getZ(i));
+                const ni = new THREE.Vector3(normalAttr.getX(i), normalAttr.getY(i), normalAttr.getZ(i)).normalize();
+                
+                if (neighbors.size === 0) {
+                    newPositions[i * 3] = xi.x;
+                    newPositions[i * 3 + 1] = xi.y;
+                    newPositions[i * 3 + 2] = xi.z;
+                    continue;
+                }
+                
+                let sumNum = 0;
+                let sumDenom = 0;
+                
+                for (const j of neighbors) {
+                    const xj = new THREE.Vector3(positionAttr.getX(j), positionAttr.getY(j), positionAttr.getZ(j));
+                    const diff = new THREE.Vector3().subVectors(xj, xi);
+                    const d = diff.length();
+                    const h = diff.dot(ni);
+                    
+                    const wc = Math.exp(-(d * d) / sigmaC2);
+                    const ws = Math.exp(-(h * h) / sigmaS2);
+                    const w = wc * ws;
+                    
+                    sumNum += w * h;
+                    sumDenom += w;
+                }
+                
+                if (sumDenom > 0) {
+                    const displacement = sumNum / sumDenom;
+                    newPositions[i * 3] = xi.x + ni.x * displacement;
+                    newPositions[i * 3 + 1] = xi.y + ni.y * displacement;
+                    newPositions[i * 3 + 2] = xi.z + ni.z * displacement;
+                } else {
+                    newPositions[i * 3] = xi.x;
+                    newPositions[i * 3 + 1] = xi.y;
+                    newPositions[i * 3 + 2] = xi.z;
+                }
+            }
+            
+            for (let i = 0; i < vertexCount; i++) {
+                positionAttr.setXYZ(i, newPositions[i * 3], newPositions[i * 3 + 1], newPositions[i * 3 + 2]);
+            }
+            positionAttr.needsUpdate = true;
+            geometry.computeVertexNormals();
+        }
+
+        // Curvatura Gaussiana Discreta: K(v) = 2*PI - Sum(theta)
+        function computeGaussianCurvature(geometry) {
+            const positionAttr = geometry.attributes.position;
+            const vertexCount = positionAttr.count;
+            const indices = geometry.index ? geometry.index.array : null;
+            
+            const curvatures = new Float32Array(vertexCount);
+            if (!indices) return curvatures;
+            
+            for (let i = 0; i < vertexCount; i++) {
+                curvatures[i] = 2 * Math.PI;
+            }
+            
+            const faceCount = indices.length / 3;
+            for (let f = 0; f < faceCount; f++) {
+                const i0 = indices[f * 3];
+                const i1 = indices[f * 3 + 1];
+                const i2 = indices[f * 3 + 2];
+                
+                const p0 = new THREE.Vector3(positionAttr.getX(i0), positionAttr.getY(i0), positionAttr.getZ(i0));
+                const p1 = new THREE.Vector3(positionAttr.getX(i1), positionAttr.getY(i1), positionAttr.getZ(i1));
+                const p2 = new THREE.Vector3(positionAttr.getX(i2), positionAttr.getY(i2), positionAttr.getZ(i2));
+                
+                const v01 = new THREE.Vector3().subVectors(p1, p0);
+                const v02 = new THREE.Vector3().subVectors(p2, p0);
+                const angle0 = v01.angleTo(v02);
+                
+                const v10 = new THREE.Vector3().subVectors(p0, p1);
+                const v12 = new THREE.Vector3().subVectors(p2, p1);
+                const angle1 = v10.angleTo(v12);
+                
+                const v20 = new THREE.Vector3().subVectors(p0, p2);
+                const v21 = new THREE.Vector3().subVectors(p1, p2);
+                const angle2 = v20.angleTo(v21);
+                
+                if (!isNaN(angle0)) curvatures[i0] -= angle0;
+                if (!isNaN(angle1)) curvatures[i1] -= angle1;
+                if (!isNaN(angle2)) curvatures[i2] -= angle2;
+            }
+            return curvatures;
+        }
+
+        // Curvatura Media Discreta (Uniform Laplacian-based magnitude)
+        function computeMeanCurvature(geometry) {
+            const positionAttr = geometry.attributes.position;
+            const vertexCount = positionAttr.count;
+            const { adjVertices } = buildAdjacency(geometry);
+            
+            const curvatures = new Float32Array(vertexCount);
+            
+            for (let i = 0; i < vertexCount; i++) {
+                const neighbors = adjVertices[i];
+                if (neighbors.size === 0) {
+                    curvatures[i] = 0;
+                    continue;
+                }
+                
+                const xi = new THREE.Vector3(positionAttr.getX(i), positionAttr.getY(i), positionAttr.getZ(i));
+                const sumDiff = new THREE.Vector3();
+                
+                for (const j of neighbors) {
+                    const xj = new THREE.Vector3(positionAttr.getX(j), positionAttr.getY(j), positionAttr.getZ(j));
+                    sumDiff.add(new THREE.Vector3().subVectors(xj, xi));
+                }
+                
+                curvatures[i] = 0.5 * (sumDiff.divideScalar(neighbors.size).length());
+            }
+            return curvatures;
+        }
+
+        // Colorear malla por valores de curvatura
+        function applyCurvatureColoring(geometry, mode = 'gaussian') {
+            const vertexCount = geometry.attributes.position.count;
+            const curvatures = mode === 'gaussian' ? computeGaussianCurvature(geometry) : computeMeanCurvature(geometry);
+            
+            let sorted = [...curvatures].sort((a, b) => a - b);
+            const minVal = sorted[Math.floor(vertexCount * 0.05)] || sorted[0];
+            const maxVal = sorted[Math.floor(vertexCount * 0.95)] || sorted[vertexCount - 1];
+            const range = maxVal - minVal || 0.001;
+            
+            const colors = new Float32Array(vertexCount * 3);
+            
+            for (let i = 0; i < vertexCount; i++) {
+                const val = curvatures[i];
+                if (mode === 'gaussian') {
+                    const maxAbs = Math.max(Math.abs(minVal), Math.abs(maxVal)) || 0.001;
+                    const normVal = Math.max(-1, Math.min(1, val / maxAbs));
+                    
+                    if (normVal < 0) {
+                        const t = normVal + 1; // 0 to 1
+                        colors[i * 3] = 0.1 * (1 - t) + 0.3 * t; // R
+                        colors[i * 3 + 1] = 0.2 * (1 - t) + 0.3 * t; // G
+                        colors[i * 3 + 2] = 0.95 * (1 - t) + 0.3 * t; // B
+                    } else {
+                        const t = normVal; // 0 to 1
+                        colors[i * 3] = 0.3 * (1 - t) + 0.95 * t; // R
+                        colors[i * 3 + 1] = 0.3 * (1 - t) + 0.15 * t; // G
+                        colors[i * 3 + 2] = 0.3 * (1 - t) + 0.1 * t; // B
+                    }
+                } else {
+                    const normVal = Math.max(0, Math.min(1, (val - minVal) / range));
+                    if (normVal < 0.5) {
+                        const t = normVal * 2;
+                        colors[i * 3] = 0.1 * (1 - t) + 0.8 * t;
+                        colors[i * 3 + 1] = 0.05 * (1 - t) + 0.1 * t;
+                        colors[i * 3 + 2] = 0.25 * (1 - t) + 0.6 * t;
+                    } else {
+                        const t = (normVal - 0.5) * 2;
+                        colors[i * 3] = 0.8 * (1 - t) + 1.0 * t;
+                        colors[i * 3 + 1] = 0.1 * (1 - t) + 0.95 * t;
+                        colors[i * 3 + 2] = 0.6 * (1 - t) + 0.2 * t;
+                    }
+                }
+            }
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            if (geometry.attributes.color) geometry.attributes.color.needsUpdate = true;
+        }
+
+        // Colorear malla por normales
+        function applyNormalsColoring(geometry) {
+            const vertexCount = geometry.attributes.position.count;
+            geometry.computeVertexNormals();
+            const normalAttr = geometry.attributes.normal;
+            const colors = new Float32Array(vertexCount * 3);
+            
+            for (let i = 0; i < vertexCount; i++) {
+                colors[i * 3] = normalAttr.getX(i) * 0.5 + 0.5;
+                colors[i * 3 + 1] = normalAttr.getY(i) * 0.5 + 0.5;
+                colors[i * 3 + 2] = normalAttr.getZ(i) * 0.5 + 0.5;
+            }
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            if (geometry.attributes.color) geometry.attributes.color.needsUpdate = true;
+        }
+
+        // Normales ponderadas por ángulo de Max [1999] (I❤ MESH, Section 7)
+        function computeAngleWeightedNormals(geometry) {
+            const positionAttr = geometry.attributes.position;
+            const vertexCount = positionAttr.count;
+            const indices = geometry.index ? geometry.index.array : null;
+            
+            if (!indices) {
+                geometry.computeVertexNormals();
+                return;
+            }
+            
+            const normals = Array.from({ length: vertexCount }, () => new THREE.Vector3());
+            const faceCount = indices.length / 3;
+            
+            for (let f = 0; f < faceCount; f++) {
+                const i0 = indices[f * 3];
+                const i1 = indices[f * 3 + 1];
+                const i2 = indices[f * 3 + 2];
+                
+                const p0 = new THREE.Vector3(positionAttr.getX(i0), positionAttr.getY(i0), positionAttr.getZ(i0));
+                const p1 = new THREE.Vector3(positionAttr.getX(i1), positionAttr.getY(i1), positionAttr.getZ(i1));
+                const p2 = new THREE.Vector3(positionAttr.getX(i2), positionAttr.getY(i2), positionAttr.getZ(i2));
+                
+                const v01 = new THREE.Vector3().subVectors(p1, p0);
+                const v02 = new THREE.Vector3().subVectors(p2, p0);
+                const faceNormal = new THREE.Vector3().crossVectors(v01, v02).normalize();
+                
+                const v10 = new THREE.Vector3().subVectors(p0, p1);
+                const v12 = new THREE.Vector3().subVectors(p2, p1);
+                const v20 = new THREE.Vector3().subVectors(p0, p2);
+                const v21 = new THREE.Vector3().subVectors(p1, p2);
+                
+                const angle0 = v01.angleTo(v02);
+                const angle1 = v10.angleTo(v12);
+                const angle2 = v20.angleTo(v21);
+                
+                if (!isNaN(angle0)) normals[i0].addScaledVector(faceNormal, angle0);
+                if (!isNaN(angle1)) normals[i1].addScaledVector(faceNormal, angle1);
+                if (!isNaN(angle2)) normals[i2].addScaledVector(faceNormal, angle2);
+            }
+            
+            const normalAttr = geometry.attributes.normal;
+            for (let i = 0; i < vertexCount; i++) {
+                normals[i].normalize();
+                normalAttr.setXYZ(i, normals[i].x, normals[i].y, normals[i].z);
+            }
+            normalAttr.needsUpdate = true;
+        }
+
+        // Extractor de contornos Moore-Neighbor para extrusión suave
+        function findContours(binaryMap, W, H) {
+            const visited = Array.from({ length: H }, () => new Uint8Array(W));
+            const contours = [];
+            
+            const dirs = [
+                [1, 0], [1, 1], [0, 1], [-1, 1],
+                [-1, 0], [-1, -1], [0, -1], [1, -1]
+            ];
+            
+            for (let y = 1; y < H - 1; y++) {
+                for (let x = 1; x < W - 1; x++) {
+                    if (binaryMap[y][x] === 1 && !visited[y][x]) {
+                        const isBoundary = binaryMap[y-1][x] === 0 || binaryMap[y+1][x] === 0 ||
+                                           binaryMap[y][x-1] === 0 || binaryMap[y][x+1] === 0;
+                        
+                        if (isBoundary) {
+                            const contour = [];
+                            let currX = x;
+                            let currY = y;
+                            let dirIndex = 0;
+                            let startX = x;
+                            let startY = y;
+                            let steps = 0;
+                            const maxSteps = W * H;
+                            
+                            while (steps < maxSteps) {
+                                contour.push([currX, currY]);
+                                visited[currY][currX] = 1;
+                                
+                                let nextX = -1, nextY = -1;
+                                let foundNext = false;
+                                let searchStart = (dirIndex + 5) % 8;
+                                
+                                for (let i = 0; i < 8; i++) {
+                                    const checkDir = (searchStart + i) % 8;
+                                    const tx = currX + dirs[checkDir][0];
+                                    const ty = currY + dirs[checkDir][1];
+                                    
+                                    if (tx >= 0 && tx < W && ty >= 0 && ty < H) {
+                                        if (binaryMap[ty][tx] === 1) {
+                                            const checkBoundary = ty === 0 || ty === H - 1 || tx === 0 || tx === W - 1 ||
+                                                                  binaryMap[ty-1][tx] === 0 || binaryMap[ty+1][tx] === 0 ||
+                                                                  binaryMap[ty][tx-1] === 0 || binaryMap[ty][tx+1] === 0;
+                                            if (checkBoundary) {
+                                                nextX = tx;
+                                                nextY = ty;
+                                                dirIndex = checkDir;
+                                                foundNext = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                if (!foundNext || (nextX === startX && nextY === startY)) {
+                                    break;
+                                }
+                                currX = nextX;
+                                currY = nextY;
+                                steps++;
+                            }
+                            if (contour.length > 5) {
+                                contours.push(contour);
+                            }
+                        }
+                    }
+                }
+            }
+            return contours;
+        }
+
+        // --- Función REAL de conversión de imagen a malla 3D ---
+        // Esta función analiza la imagen píxel por píxel, detecta áreas sólidas
+        // y genera una malla 3D por extrusión volumétrica
+        
+        // --- Generación de Geometría de Vóxeles ---
+        function generateVoxelGeometry(binaryMap, W, H, extrusionHeight) {
+            const scaleX = 2.2 / W;
+            const scaleY = 2.2 / H;
+            const offsetX = -1.1;
+            const offsetY = -1.1;
+            
+            const vertices = [];
+            const indices = [];
+            const uvs = [];
+            const vertexMap = new Map();
+            
+            function getVertexIndex(x, y, z) {
+                const key = `${x.toFixed(6)},${y.toFixed(6)},${z.toFixed(6)}`;
+                if (!vertexMap.has(key)) {
+                    vertexMap.set(key, vertices.length / 3);
+                    vertices.push(x, y, z);
+                }
+                return vertexMap.get(key);
+            }
+            
+            for (let y = 0; y < H - 1; y++) {
+                for (let x = 0; x < W - 1; x++) {
+                    if (binaryMap[y][x] === 1) {
+                        const px = offsetX + x * scaleX;
+                        const py = offsetY + y * scaleY;
+                        const pz = 0;
+                        const w = scaleX;
+                        const h = scaleY;
+                        const ext = extrusionHeight;
+                        
+                        const v0 = getVertexIndex(px, py, pz);
+                        const v1 = getVertexIndex(px + w, py, pz);
+                        const v2 = getVertexIndex(px + w, py + h, pz);
+                        const v3 = getVertexIndex(px, py + h, pz);
+                        const v4 = getVertexIndex(px, py, pz + ext);
+                        const v5 = getVertexIndex(px + w, py, pz + ext);
+                        const v6 = getVertexIndex(px + w, py + h, pz + ext);
+                        const v7 = getVertexIndex(px, py + h, pz + ext);
+                        
+                        const faces = [
+                            [v0, v1, v2, v3], // frente
+                            [v4, v7, v6, v5], // atrás
+                            [v0, v4, v5, v1], // abajo
+                            [v3, v2, v6, v7], // arriba
+                            [v0, v3, v7, v4], // izquierda
+                            [v1, v5, v6, v2]  // derecha
+                        ];
+                        
+                        const u = x / W;
+                        const v = 1 - (y / H);
+                        
+                        faces.forEach(face => {
+                            const [a, b, c, d] = face;
+                            indices.push(a, b, c);
+                            indices.push(a, c, d);
+                            for (let i = 0; i < 4; i++) {
+                                uvs.push(u, v);
+                            }
+                        });
+                    }
+                }
+            }
+            
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3));
+            geometry.setIndex(indices);
+            geometry.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(uvs), 2));
+            geometry.computeVertexNormals();
+            return geometry;
+        }
+
+        // --- Generación de Geometría de Mapa de Alturas Cerrada ---
+        function generateHeightmapGeometry(imageData, extrusionHeight, threshold) {
+            const width = imageData.width;
+            const height = imageData.height;
+            const data = imageData.data;
+            
+            const maxGrid = 100;
+            const scale = Math.min(1, Math.min(maxGrid / width, maxGrid / height));
+            const gridW = Math.round(width * scale);
+            const gridH = Math.round(height * scale);
+            
+            const vertices = [];
+            const indices = [];
+            const uvs = [];
+            
+            const scaleX = 2.2 / (gridW - 1);
+            const scaleY = 2.2 / (gridH - 1);
+            const offsetX = -1.1;
+            const offsetY = -1.1;
+            
+            function getPixelValue(gx, gy) {
+                const imgX = Math.floor(gx / scale);
+                const imgY = Math.floor(gy / scale);
+                const x = Math.max(0, Math.min(width - 1, imgX));
+                const y = Math.max(0, Math.min(height - 1, imgY));
+                const idx = (y * width + x) * 4;
+                const r = data[idx];
+                const g = data[idx + 1];
+                const b = data[idx + 2];
+                const a = data[idx + 3];
+                
+                if (a === 0 || a < threshold) return 0;
+                return (r + g + b) / 3 / 255;
+            }
+            
+            // 1. Rejilla superior
+            for (let gy = 0; gy < gridH; gy++) {
+                for (let gx = 0; gx < gridW; gx++) {
+                    const px = offsetX + gx * scaleX;
+                    const py = offsetY + gy * scaleY;
+                    const pz = getPixelValue(gx, gy) * extrusionHeight;
+                    vertices.push(px, py, pz);
+                    uvs.push(gx / (gridW - 1), 1 - (gy / (gridH - 1)));
+                }
+            }
+            
+            const topOffset = 0;
+            const bottomOffset = gridW * gridH;
+            
+            // 2. Base plana inferior
+            for (let gy = 0; gy < gridH; gy++) {
+                for (let gx = 0; gx < gridW; gx++) {
+                    const px = offsetX + gx * scaleX;
+                    const py = offsetY + gy * scaleY;
+                    const pz = 0;
+                    vertices.push(px, py, pz);
+                    uvs.push(gx / (gridW - 1), 1 - (gy / (gridH - 1)));
+                }
+            }
+            
+            // 3. Triangulación de rejilla superior
+            for (let gy = 0; gy < gridH - 1; gy++) {
+                for (let gx = 0; gx < gridW - 1; gx++) {
+                    const v00 = topOffset + gy * gridW + gx;
+                    const v10 = topOffset + gy * gridW + (gx + 1);
+                    const v01 = topOffset + (gy + 1) * gridW + gx;
+                    const v11 = topOffset + (gy + 1) * gridW + (gx + 1);
+                    
+                    indices.push(v00, v01, v10);
+                    indices.push(v10, v01, v11);
+                }
+            }
+            
+            // 4. Triangulación de base inferior (sentido opuesto)
+            for (let gy = 0; gy < gridH - 1; gy++) {
+                for (let gx = 0; gx < gridW - 1; gx++) {
+                    const v00 = bottomOffset + gy * gridW + gx;
+                    const v10 = bottomOffset + gy * gridW + (gx + 1);
+                    const v01 = bottomOffset + (gy + 1) * gridW + gx;
+                    const v11 = bottomOffset + (gy + 1) * gridW + (gx + 1);
+                    
+                    indices.push(v00, v10, v01);
+                    indices.push(v10, v11, v01);
+                }
+            }
+            
+            // 5. Paredes laterales
+            // borde y = 0
+            for (let gx = 0; gx < gridW - 1; gx++) {
+                const t0 = topOffset + gx;
+                const t1 = topOffset + (gx + 1);
+                const b0 = bottomOffset + gx;
+                const b1 = bottomOffset + (gx + 1);
+                indices.push(t0, b0, t1);
+                indices.push(t1, b0, b1);
+            }
+            
+            // borde y = gridH - 1
+            for (let gx = 0; gx < gridW - 1; gx++) {
+                const t0 = topOffset + (gridH - 1) * gridW + gx;
+                const t1 = topOffset + (gridH - 1) * gridW + (gx + 1);
+                const b0 = bottomOffset + (gridH - 1) * gridW + gx;
+                const b1 = bottomOffset + (gridH - 1) * gridW + (gx + 1);
+                indices.push(t0, t1, b0);
+                indices.push(t1, b1, b0);
+            }
+            
+            // borde x = 0
+            for (let gy = 0; gy < gridH - 1; gy++) {
+                const t0 = topOffset + gy * gridW;
+                const t1 = topOffset + (gy + 1) * gridW;
+                const b0 = bottomOffset + gy * gridW;
+                const b1 = bottomOffset + (gy + 1) * gridW;
+                indices.push(t0, t1, b0);
+                indices.push(t1, b1, b0);
+            }
+            
+            // borde x = gridW - 1
+            for (let gy = 0; gy < gridH - 1; gy++) {
+                const t0 = topOffset + gy * gridW + (gridW - 1);
+                const t1 = topOffset + (gy + 1) * gridW + (gridW - 1);
+                const b0 = bottomOffset + gy * gridW + (gridW - 1);
+                const b1 = bottomOffset + (gy + 1) * gridW + (gridW - 1);
+                indices.push(t0, b0, t1);
+                indices.push(t1, b0, b1);
+            }
+            
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3));
+            geometry.setIndex(indices);
+            geometry.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(uvs), 2));
+            geometry.computeVertexNormals();
+            return geometry;
+        }
+
+        // --- Generación de Geometría de Contorno Suave ---
+        function generateSmoothShapeGeometry(binaryMap, W, H, extrusionHeight) {
+            const contours = findContours(binaryMap, W, H);
+            if (contours.length === 0) return null;
+            
+            const scaleX = 2.2 / W;
+            const scaleY = 2.2 / H;
+            const offsetX = -1.1;
+            const offsetY = -1.1;
+            
+            const shapes = [];
+            for (const contour of contours) {
+                const shape = new THREE.Shape();
+                const startPt = contour[0];
+                shape.moveTo(offsetX + startPt[0] * scaleX, offsetY + startPt[1] * scaleY);
+                for (let i = 1; i < contour.length; i++) {
+                    const pt = contour[i];
+                    shape.lineTo(offsetX + pt[0] * scaleX, offsetY + pt[1] * scaleY);
+                }
+                shape.closePath();
+                shapes.push(shape);
+            }
+            
+            const extrudeSettings = {
+                depth: extrusionHeight,
+                bevelEnabled: true,
+                bevelSegments: 3,
+                steps: 1,
+                bevelSize: 0.015,
+                bevelThickness: 0.015
+            };
+            
+            const geometry = new THREE.ExtrudeGeometry(shapes, extrudeSettings);
+            
+            // Generar UVs proyectadas
+            const pos = geometry.attributes.position;
+            const uvs = new Float32Array(pos.count * 2);
+            for (let i = 0; i < pos.count; i++) {
+                const x = pos.getX(i);
+                const y = pos.getY(i);
+                uvs[i * 2] = (x + 1.1) / 2.2;
+                uvs[i * 2 + 1] = (y + 1.1) / 2.2;
+            }
+            geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+            geometry.computeVertexNormals();
+            return geometry;
+        }
+
+        // BFS-based Distance Transform for Symmetrical Inflation
+        function computeDistanceMap(binaryMap, W, H) {
+            const dist = Array.from({ length: H }, () => new Float32Array(W));
+            const queue = [];
+            
+            // Initial boundary detection
+            for (let y = 0; y < H; y++) {
+                for (let x = 0; x < W; x++) {
+                    if (binaryMap[y][x] === 0) {
+                        dist[y][x] = 0;
+                    } else {
+                        let isBoundary = false;
+                        if (x === 0 || x === W - 1 || y === 0 || y === H - 1) {
+                            isBoundary = true;
+                        } else if (binaryMap[y-1][x] === 0 || binaryMap[y+1][x] === 0 ||
+                                   binaryMap[y][x-1] === 0 || binaryMap[y][x+1] === 0) {
+                            isBoundary = true;
+                        }
+                        
+                        if (isBoundary) {
+                            dist[y][x] = 1.0;
+                            queue.push([x, y]);
+                        } else {
+                            dist[y][x] = Infinity;
+                        }
+                    }
+                }
+            }
+            
+            // Propagate distances
+            let head = 0;
+            const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]];
+            while (head < queue.length) {
+                const [x, y] = queue[head++];
+                const d = dist[y][x];
+                
+                for (const [dx, dy] of dirs) {
+                    const nx = x + dx;
+                    const ny = y + dy;
+                    if (nx >= 0 && nx < W && ny >= 0 && ny < H && binaryMap[ny][nx] === 1) {
+                        const step = (dx === 0 || dy === 0) ? 1.0 : 1.414;
+                        if (dist[ny][nx] > d + step) {
+                            dist[ny][nx] = d + step;
+                            queue.push([nx, ny]);
+                        }
+                    }
+                }
+            }
+            
+            // Normalize
+            let maxD = 0.001;
+            for (let y = 0; y < H; y++) {
+                for (let x = 0; x < W; x++) {
+                    if (dist[y][x] !== Infinity && dist[y][x] > maxD) {
+                        maxD = dist[y][x];
+                    }
+                }
+            }
+            
+            for (let y = 0; y < H; y++) {
+                for (let x = 0; x < W; x++) {
+                    if (dist[y][x] === Infinity || binaryMap[y][x] === 0) {
+                        dist[y][x] = 0;
+                    } else {
+                        dist[y][x] /= maxD;
+                    }
+                }
+            }
+            
+            return dist;
+        }
+
+        // Generar Geometría Inflada Simétrica (Doble Cara con contorno cerrado)
+        function generateInflatedGeometry(imageData, binaryMap, W, H, extrusionHeight) {
+            const maxGrid = 100;
+            const scale = Math.min(1, Math.min(maxGrid / W, maxGrid / H));
+            const gridW = Math.round(W * scale);
+            const gridH = Math.round(H * scale);
+            
+            // Generar mapa binario a menor escala
+            const gridBinaryMap = Array.from({ length: gridH }, () => new Uint8Array(gridW));
+            for (let gy = 0; gy < gridH; gy++) {
+                for (let gx = 0; gx < gridW; gx++) {
+                    const imgX = Math.floor(gx / scale);
+                    const imgY = Math.floor(gy / scale);
+                    const x = Math.max(0, Math.min(W - 1, imgX));
+                    const y = Math.max(0, Math.min(H - 1, imgY));
+                    gridBinaryMap[gy][gx] = binaryMap[imgY][x];
+                }
+            }
+            
+            // Calcular mapa de distancias
+            const distMap = computeDistanceMap(gridBinaryMap, gridW, gridH);
+            
+            // BFS para rellenar nearestSolid para los píxeles de fondo
+            const nearestSolid = Array.from({ length: gridH }, () => new Array(gridW).fill(null));
+            const queue = [];
+            
+            for (let gy = 0; gy < gridH; gy++) {
+                for (let gx = 0; gx < gridW; gx++) {
+                    if (gridBinaryMap[gy][gx] === 1) {
+                        nearestSolid[gy][gx] = [gx, gy];
+                        queue.push([gx, gy]);
+                    }
+                }
+            }
+            
+            let head = 0;
+            const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]];
+            while (head < queue.length) {
+                const [x, y] = queue[head++];
+                const target = nearestSolid[y][x];
+                
+                for (const [dx, dy] of dirs) {
+                    const nx = x + dx;
+                    const ny = y + dy;
+                    if (nx >= 0 && nx < gridW && ny >= 0 && ny < gridH) {
+                        if (nearestSolid[ny][nx] === null) {
+                            nearestSolid[ny][nx] = target;
+                            queue.push([nx, ny]);
+                        }
+                    }
+                }
+            }
+            
+            const vertices = [];
+            const indices = [];
+            const uvs = [];
+            
+            const scaleX = 2.2 / (gridW - 1);
+            const scaleY = 2.2 / (gridH - 1);
+            const offsetX = -1.1;
+            const offsetY = -1.1;
+            
+            const vertexCount = gridW * gridH;
+            
+            const profileType = document.getElementById('inflationProfileSelector').value;
+            const colorData = imageData.data;
+            const imgW = imageData.width;
+            
+            function getInflationHeight(gx, gy, isSolid) {
+                if (!isSolid) return 0;
+                
+                const [tx, ty] = nearestSolid[gy][gx] || [gx, gy];
+                const dist = distMap[ty][tx];
+                
+                let profileVal = 0;
+                if (profileType === 'capsule') {
+                    // Perfil Cápsula: bordes redondeados y centro plano
+                    profileVal = 1.0 - Math.pow(1.0 - dist, 3.0);
+                } else if (profileType === 'cone') {
+                    // Perfil Cónico: lineal
+                    profileVal = dist;
+                } else {
+                    // Perfil Domo: raíz cuadrada estándar
+                    profileVal = Math.sqrt(dist);
+                }
+                
+                // Modulación por brillo de los píxeles originales para crear pliegues en contornos oscuros
+                const imgX = Math.max(0, Math.min(imgW - 1, Math.floor(tx / scale)));
+                const imgY = Math.max(0, Math.min(imageData.height - 1, Math.floor(ty / scale)));
+                const idx = (imgY * imgW + imgX) * 4;
+                const r = colorData[idx];
+                const g = colorData[idx + 1];
+                const b = colorData[idx + 2];
+                const brightness = (r * 0.299 + g * 0.587 + b * 0.114) / 255.0;
+                
+                // Modulamos la altura: las líneas negras/oscuras se hunden hasta un 30% del volumen, creando relieve real
+                return profileVal * extrusionHeight * (0.3 + 0.7 * brightness);
+            }
+            
+            // Cara frontal (Z > 0)
+            for (let gy = 0; gy < gridH; gy++) {
+                for (let gx = 0; gx < gridW; gx++) {
+                    const isSolid = gridBinaryMap[gy][gx] === 1;
+                    const [tx, ty] = nearestSolid[gy][gx] || [gx, gy];
+                    
+                    const px = offsetX + tx * scaleX;
+                    const py = offsetY + ty * scaleY;
+                    const hVal = getInflationHeight(gx, gy, isSolid);
+                    
+                    vertices.push(px, py, hVal);
+                    uvs.push(tx / (gridW - 1), 1 - (ty / (gridH - 1)));
+                }
+            }
+            
+            // Cara posterior (Z < 0)
+            for (let gy = 0; gy < gridH; gy++) {
+                for (let gx = 0; gx < gridW; gx++) {
+                    const isSolid = gridBinaryMap[gy][gx] === 1;
+                    const [tx, ty] = nearestSolid[gy][gx] || [gx, gy];
+                    
+                    const px = offsetX + tx * scaleX;
+                    const py = offsetY + ty * scaleY;
+                    const hVal = getInflationHeight(gx, gy, isSolid);
+                    
+                    vertices.push(px, py, -hVal);
+                    uvs.push(tx / (gridW - 1), 1 - (ty / (gridH - 1)));
+                }
+            }
+            
+            const frontOffset = 0;
+            const backOffset = vertexCount;
+            
+            // Generar caras indexadas excluyendo las degeneradas
+            const eq = (a, b) => a[0] === b[0] && a[1] === b[1];
+            
+            for (let gy = 0; gy < gridH - 1; gy++) {
+                for (let gx = 0; gx < gridW - 1; gx++) {
+                    const p00 = nearestSolid[gy][gx] || [gx, gy];
+                    const p10 = nearestSolid[gy][gx+1] || [gx+1, gy];
+                    const p01 = nearestSolid[gy+1][gx] || [gx, gy+1];
+                    const p11 = nearestSolid[gy+1][gx+1] || [gx+1, gy+1];
+                    
+                    const solid00 = gridBinaryMap[gy][gx] === 1;
+                    const solid10 = gridBinaryMap[gy][gx + 1] === 1;
+                    const solid01 = gridBinaryMap[gy + 1][gx] === 1;
+                    const solid11 = gridBinaryMap[gy + 1][gx + 1] === 1;
+                    const anySolid = solid00 || solid10 || solid01 || solid11;
+                    if (!anySolid) continue;
+                    
+                    const f00 = frontOffset + gy * gridW + gx;
+                    const f10 = frontOffset + gy * gridW + (gx + 1);
+                    const f01 = frontOffset + (gy + 1) * gridW + gx;
+                    const f11 = frontOffset + (gy + 1) * gridW + (gx + 1);
+                    
+                    const b00 = backOffset + gy * gridW + gx;
+                    const b10 = backOffset + gy * gridW + (gx + 1);
+                    const b01 = backOffset + (gy + 1) * gridW + gx;
+                    const b11 = backOffset + (gy + 1) * gridW + (gx + 1);
+                    
+                    // Triángulo 1: 00, 01, 10
+                    if (!eq(p00, p01) && !eq(p01, p10) && !eq(p10, p00)) {
+                        indices.push(f00, f01, f10);
+                        indices.push(b00, b10, b01);
+                    }
+                    
+                    // Triángulo 2: 10, 01, 11
+                    if (!eq(p10, p01) && !eq(p01, p11) && !eq(p11, p10)) {
+                        indices.push(f10, f01, f11);
+                        indices.push(b10, b11, b01);
+                    }
+                }
+            }
+            
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3));
+            geometry.setIndex(indices);
+            geometry.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(uvs), 2));
+            geometry.computeVertexNormals();
+            return geometry;
+        }
+
+        // Actualizar modo visual
+        function updateVisualModeForGeometry(geometry, material, visualMode, texture) {
+            if (visualMode === 'textured') {
+                material.map = texture;
+                material.normalMap = material.userData.originalNormalMap || null;
+                material.roughnessMap = material.userData.originalRoughnessMap || null;
+                material.vertexColors = false;
+                if (geometry.attributes.color) {
+                    geometry.deleteAttribute('color');
+                }
+            } else {
+                if (material.normalMap && !material.userData.originalNormalMap) {
+                    material.userData.originalNormalMap = material.normalMap;
+                }
+                if (material.roughnessMap && !material.userData.originalRoughnessMap) {
+                    material.userData.originalRoughnessMap = material.roughnessMap;
+                }
+                material.map = null;
+                material.normalMap = null;
+                material.roughnessMap = null;
+                material.vertexColors = true;
+                
+                if (visualMode === 'gaussian_curvature') {
+                    applyCurvatureColoring(geometry, 'gaussian');
+                } else if (visualMode === 'mean_curvature') {
+                    applyCurvatureColoring(geometry, 'mean');
+                } else if (visualMode === 'normals') {
+                    applyNormalsColoring(geometry);
+                } else if (visualMode === 'wireframe') {
+                    material.vertexColors = false;
+                    if (geometry.attributes.color) {
+                        geometry.deleteAttribute('color');
+                    }
+                }
+            }
+            material.wireframe = (visualMode === 'wireframe');
+            material.needsUpdate = true;
+        }
+
+        // Generador de Normal Map usando un filtro de Sobel
+        function generateNormalMapCanvas(colorCanvas, intensity = 1.0) {
+            const w = colorCanvas.width;
+            const h = colorCanvas.height;
+            const colorCtx = colorCanvas.getContext('2d');
+            const colorData = colorCtx.getImageData(0, 0, w, h);
+            const data = colorData.data;
+            
+            const normalCanvas = document.createElement('canvas');
+            normalCanvas.width = w;
+            normalCanvas.height = h;
+            const normalCtx = normalCanvas.getContext('2d');
+            const normalData = normalCtx.createImageData(w, h);
+            const ndata = normalData.data;
+            
+            // Convertir a escala de grises
+            const gray = new Float32Array(w * h);
+            for (let i = 0; i < data.length; i += 4) {
+                const a = data[i+3];
+                if (a === 0) {
+                    gray[i/4] = 0;
+                } else {
+                    gray[i/4] = (data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114) / 255.0;
+                }
+            }
+            
+            // Sobel
+            for (let y = 0; y < h; y++) {
+                for (let x = 0; x < w; x++) {
+                    const idx = y * w + x;
+                    
+                    const getGray = (px, py) => {
+                        const cx = Math.max(0, Math.min(w - 1, px));
+                        const cy = Math.max(0, Math.min(h - 1, py));
+                        return gray[cy * w + cx];
+                    };
+                    
+                    const gX = 
+                        -1 * getGray(x - 1, y - 1) + 1 * getGray(x + 1, y - 1) +
+                        -2 * getGray(x - 1, y)     + 2 * getGray(x + 1, y) +
+                        -1 * getGray(x - 1, y + 1) + 1 * getGray(x + 1, y + 1);
+                        
+                    const gY = 
+                        -1 * getGray(x - 1, y - 1) - 2 * getGray(x, y - 1) - 1 * getGray(x + 1, y - 1) +
+                        1 * getGray(x - 1, y + 1) + 2 * getGray(x, y + 1) + 1 * getGray(x + 1, y + 1);
+                    
+                    const nx = -gX * intensity;
+                    const ny = -gY * intensity;
+                    const nz = 1.0;
+                    
+                    const len = Math.sqrt(nx*nx + ny*ny + nz*nz);
+                    const rX = nx / len;
+                    const rY = ny / len;
+                    const rZ = nz / len;
+                    
+                    const nidx = idx * 4;
+                    ndata[nidx] = Math.round((rX * 0.5 + 0.5) * 255);
+                    ndata[nidx+1] = Math.round((rY * 0.5 + 0.5) * 255);
+                    ndata[nidx+2] = Math.round((rZ * 0.5 + 0.5) * 255);
+                    ndata[nidx+3] = data[nidx+3];
+                }
+            }
+            
+            normalCtx.putImageData(normalData, 0, 0);
+            return normalCanvas;
+        }
+
+        // Generador de Roughness Map a partir de brillo
+        function generateRoughnessMapCanvas(colorCanvas) {
+            const w = colorCanvas.width;
+            const h = colorCanvas.height;
+            const colorCtx = colorCanvas.getContext('2d');
+            const colorData = colorCtx.getImageData(0, 0, w, h);
+            const data = colorData.data;
+            
+            const roughnessCanvas = document.createElement('canvas');
+            roughnessCanvas.width = w;
+            roughnessCanvas.height = h;
+            const roughnessCtx = roughnessCanvas.getContext('2d');
+            const roughnessData = roughnessCtx.createImageData(w, h);
+            const rdata = roughnessData.data;
+            
+            for (let i = 0; i < data.length; i += 4) {
+                const r = data[i];
+                const g = data[i+1];
+                const b = data[i+2];
+                const a = data[i+3];
+                
+                const brightness = (r * 0.299 + g * 0.587 + b * 0.114) / 255.0;
+                // Partes oscuras tienen más rugosidad, partes claras son más pulidas
+                const roughnessValue = Math.max(0, Math.min(255, Math.round((0.8 - brightness * 0.5) * 255)));
+                
+                rdata[i] = roughnessValue;
+                rdata[i+1] = roughnessValue;
+                rdata[i+2] = roughnessValue;
+                rdata[i+3] = a;
+            }
+            
+            roughnessCtx.putImageData(roughnessData, 0, 0);
+            return roughnessCanvas;
+        }
+
+        // --- Conversión Principal de Imagen a Malla 3D ---
+        function imageTo3DMesh(imageFile, extrusionHeight, threshold, smoothness) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    ctx.drawImage(img, 0, 0);
+                    
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const data = imageData.data;
+                    
+                    // --- Filtro de Eliminación de Fondo (Preprocesado 2D) ---
+                    const bgMode = document.getElementById('bgColorSelector').value;
+                    const bgTol = parseFloat(document.getElementById('bgToleranceSlider').value);
+                    
+                    let bgR = 0, bgG = 0, bgB = 0;
+                    if (bgMode === 'auto') {
+                        // Muestreo de la esquina superior izquierda (primer píxel)
+                        bgR = data[0];
+                        bgG = data[1];
+                        bgB = data[2];
+                    } else if (bgMode === 'black') {
+                        bgR = 0; bgG = 0; bgB = 0;
+                    } else if (bgMode === 'white') {
+                        bgR = 255; bgG = 255; bgB = 255;
+                    }
+                    
+                    if (bgMode !== 'none') {
+                        for (let i = 0; i < data.length; i += 4) {
+                            const r = data[i];
+                            const g = data[i+1];
+                            const b = data[i+2];
+                            
+                            // Distancia euclídea en el espacio RGB
+                            const dist = Math.sqrt((r - bgR)**2 + (g - bgG)**2 + (b - bgB)**2);
+                            if (dist < bgTol) {
+                                data[i+3] = 0; // Hacer transparente
+                            }
+                        }
+                        // Escribir de nuevo en el canvas para que la textura visual también sea transparente
+                        ctx.putImageData(imageData, 0, 0);
+                    }
+                    
+                    const binaryMap = [];
+                    let solidPixels = 0;
+                    
+                    for (let y = 0; y < canvas.height; y++) {
+                        binaryMap[y] = [];
+                        for (let x = 0; x < canvas.width; x++) {
+                            const idx = (y * canvas.width + x) * 4;
+                            const r = data[idx];
+                            const g = data[idx + 1];
+                            const b = data[idx + 2];
+                            const a = data[idx + 3];
+                            
+                            let isSolid;
+                            if (a < 255) {
+                                // Si el píxel tiene transparencia (del PNG original o del filtro de fondo)
+                                isSolid = a > threshold;
+                            } else {
+                                // Si el píxel es opaco
+                                if (bgMode === 'none') {
+                                    // Sin filtro de fondo, usamos brillo
+                                    const brightness = (r + g + b) / 3;
+                                    isSolid = brightness > threshold;
+                                } else {
+                                    // Con filtro de fondo, cualquier píxel opaco es parte del personaje
+                                    isSolid = true;
+                                }
+                            }
+                            binaryMap[y][x] = isSolid ? 1 : 0;
+                            if (isSolid) solidPixels++;
+                        }
+                    }
+                    
+                    if (solidPixels === 0) {
+                        reject(new Error("No se detectaron áreas sólidas. Ajusta el umbral."));
+                        return;
+                    }
+                    
+                    document.getElementById('stats').innerHTML = `📊 ${solidPixels} píxeles sólidos detectados | Generando malla...`;
+                    
+                    const meshType = document.getElementById('meshTypeSelector').value;
+                    let geometry;
+                    
+                    if (meshType === 'inflated') {
+                        geometry = generateInflatedGeometry(imageData, binaryMap, canvas.width, canvas.height, extrusionHeight);
+                    } else if (meshType === 'heightmap') {
+                        geometry = generateHeightmapGeometry(imageData, extrusionHeight, threshold);
+                    } else if (meshType === 'smooth') {
+                        geometry = generateSmoothShapeGeometry(binaryMap, canvas.width, canvas.height, extrusionHeight);
+                    } else {
+                        geometry = generateVoxelGeometry(binaryMap, canvas.width, canvas.height, extrusionHeight);
+                    }
+                    
+                    if (!geometry) {
+                        reject(new Error("Error al generar la geometría 3D"));
+                        return;
+                    }
+                    
+                    // Calcular normales suavizadas por ángulo
+                    computeAngleWeightedNormals(geometry);
+                    
+                    const normalStrength = parseFloat(document.getElementById('normalStrengthSlider').value);
+                    const normalCanvas = generateNormalMapCanvas(canvas, normalStrength);
+                    const roughnessCanvas = generateRoughnessMapCanvas(canvas);
+                    
+                    const texture = new THREE.CanvasTexture(canvas);
+                    texture.needsUpdate = true;
+                    
+                    const normalTexture = new THREE.CanvasTexture(normalCanvas);
+                    normalTexture.needsUpdate = true;
+                    
+                    const roughnessTexture = new THREE.CanvasTexture(roughnessCanvas);
+                    roughnessTexture.needsUpdate = true;
+                    
+                    const material = new THREE.MeshStandardMaterial({
+                        map: texture,
+                        normalMap: normalTexture,
+                        normalScale: new THREE.Vector2(normalStrength, normalStrength),
+                        roughnessMap: roughnessTexture,
+                        roughness: 1.0,
+                        metalness: 0.15,
+                        flatShading: smoothness < 0.3,
+                        side: THREE.DoubleSide,
+                        transparent: true,
+                        alphaTest: 0.1
+                    });
+                    
+                    material.userData = {
+                        originalTexture: texture,
+                        originalNormalMap: normalTexture,
+                        originalRoughnessMap: roughnessTexture
+                    };
+                    
+                    const visualMode = document.getElementById('visualModeSelector').value;
+                    updateVisualModeForGeometry(geometry, material, visualMode, texture);
+                    
+                    const mesh = new THREE.Mesh(geometry, material);
+                    mesh.castShadow = true;
+                    mesh.receiveShadow = true;
+                    
+                    // Centrar
+                    const box = new THREE.Box3().setFromObject(mesh);
+                    const center = box.getCenter(new THREE.Vector3());
+                    mesh.position.sub(center);
+                    mesh.position.y += extrusionHeight / 2;
+                    
+                    const vCount = geometry.attributes.position.count;
+                    const fCount = geometry.index ? (geometry.index.count / 3) : (vCount / 3);
+                    
+                    resolve({ mesh, geometry, vertices: vCount, indices: fCount });
+                };
+                img.onerror = () => reject(new Error("Error al cargar la imagen"));
+                img.src = URL.createObjectURL(imageFile);
+            });
+        }
+        
+        // --- UI Elements ---
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const loadingDiv = document.getElementById('loading');
+        const modal = document.getElementById('modal');
+        const polyCountSpan = document.getElementById('polyCount');
+        
+        let currentImageFile = null;
+        
+        uploadArea.addEventListener('click', () => fileInput.click());
+        
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            currentImageFile = file;
+            
+            loadingDiv.style.display = 'flex';
+            
+            try {
+                const height = parseFloat(document.getElementById('heightSlider').value);
+                const threshold = parseFloat(document.getElementById('thresholdSlider').value);
+                const smoothness = parseFloat(document.getElementById('smoothSlider').value);
+                
+                const { mesh, vertices, indices } = await imageTo3DMesh(file, height, threshold, smoothness);
+                
+                if (currentMesh) {
+                    scene.remove(currentMesh);
+                    if (currentMesh.geometry) currentMesh.geometry.dispose();
+                    if (currentMesh.material) currentMesh.material.dispose();
+                }
+                
+                currentMesh = mesh;
+                scene.add(currentMesh);
+                
+                polyCountSpan.innerText = indices;
+                loadingDiv.style.display = 'none';
+                modal.style.display = 'flex';
+                document.getElementById('stats').innerHTML = `✅ Modelo 3D real | ${vertices} vértices | ${indices} polígonos`;
+                
+            } catch (err) {
+                loadingDiv.style.display = 'none';
+                alert("Error: " + err.message);
+                console.error(err);
+            }
+        });
+        
+        // Actualizar en tiempo real (altura y umbral regeneran la malla)
+        document.getElementById('heightSlider').addEventListener('input', async (e) => {
+            const val = e.target.value;
+            document.getElementById('heightValue').innerText = val;
+            if (currentImageFile && currentMesh) {
+                loadingDiv.style.display = 'flex';
+                try {
+                    const height = parseFloat(val);
+                    const threshold = parseFloat(document.getElementById('thresholdSlider').value);
+                    const smoothness = parseFloat(document.getElementById('smoothSlider').value);
+                    const { mesh } = await imageTo3DMesh(currentImageFile, height, threshold, smoothness);
+                    scene.remove(currentMesh);
+                    currentMesh = mesh;
+                    scene.add(currentMesh);
+                } catch (err) {
+                    console.error(err);
+                } finally {
+                    loadingDiv.style.display = 'none';
+                }
+            }
+        });
+        
+        document.getElementById('thresholdSlider').addEventListener('input', async (e) => {
+            const val = e.target.value;
+            document.getElementById('thresholdValue').innerText = val;
+            if (currentImageFile && currentMesh) {
+                loadingDiv.style.display = 'flex';
+                try {
+                    const height = parseFloat(document.getElementById('heightSlider').value);
+                    const threshold = parseFloat(val);
+                    const smoothness = parseFloat(document.getElementById('smoothSlider').value);
+                    const { mesh } = await imageTo3DMesh(currentImageFile, height, threshold, smoothness);
+                    scene.remove(currentMesh);
+                    currentMesh = mesh;
+                    scene.add(currentMesh);
+                } catch (err) {
+                    console.error(err);
+                } finally {
+                    loadingDiv.style.display = 'none';
+                }
+            }
+        });
+        
+        document.getElementById('normalStrengthSlider').addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            document.getElementById('normalStrengthValue').innerText = val.toFixed(2);
+            if (currentMesh && currentMesh.material) {
+                const mat = currentMesh.material;
+                if (mat.normalScale) {
+                    mat.normalScale.set(val, val);
+                }
+            }
+        });
+        
+        document.getElementById('smoothSlider').addEventListener('input', (e) => {
+            const val = e.target.value;
+            document.getElementById('smoothValue').innerText = val;
+            if (currentMesh && currentMesh.material) {
+                const smoothness = parseFloat(val);
+                currentMesh.material.roughness = 0.4 - smoothness * 0.3;
+                currentMesh.material.metalness = 0.2 + smoothness * 0.3;
+                currentMesh.material.flatShading = smoothness < 0.3;
+                currentMesh.material.needsUpdate = true;
+            }
+        });
+
+        // Cambio de color de fondo a eliminar -> Regenerar malla
+        document.getElementById('bgColorSelector').addEventListener('change', async (e) => {
+            const val = e.target.value;
+            const bgToleranceGroup = document.getElementById('bgToleranceGroup');
+            if (val === 'none') {
+                bgToleranceGroup.style.display = 'none';
+            } else {
+                bgToleranceGroup.style.display = 'block';
+            }
+            
+            if (currentImageFile && currentMesh) {
+                loadingDiv.style.display = 'flex';
+                try {
+                    const height = parseFloat(document.getElementById('heightSlider').value);
+                    const threshold = parseFloat(document.getElementById('thresholdSlider').value);
+                    const smoothness = parseFloat(document.getElementById('smoothSlider').value);
+                    const { mesh, vertices, indices } = await imageTo3DMesh(currentImageFile, height, threshold, smoothness);
+                    scene.remove(currentMesh);
+                    currentMesh = mesh;
+                    scene.add(currentMesh);
+                    polyCountSpan.innerText = indices;
+                    document.getElementById('stats').innerHTML = `✅ Malla regenerada | ${vertices} vértices | ${indices} polígonos`;
+                } catch (err) {
+                    console.error(err);
+                } finally {
+                    loadingDiv.style.display = 'none';
+                }
+            }
+        });
+
+        // Cambio de tolerancia de fondo -> Regenerar malla
+        document.getElementById('bgToleranceSlider').addEventListener('input', async (e) => {
+            const val = e.target.value;
+            document.getElementById('bgToleranceValue').innerText = val;
+            if (currentImageFile && currentMesh) {
+                loadingDiv.style.display = 'flex';
+                try {
+                    const height = parseFloat(document.getElementById('heightSlider').value);
+                    const threshold = parseFloat(document.getElementById('thresholdSlider').value);
+                    const smoothness = parseFloat(document.getElementById('smoothSlider').value);
+                    const { mesh, vertices, indices } = await imageTo3DMesh(currentImageFile, height, threshold, smoothness);
+                    scene.remove(currentMesh);
+                    currentMesh = mesh;
+                    scene.add(currentMesh);
+                    polyCountSpan.innerText = indices;
+                    document.getElementById('stats').innerHTML = `✅ Malla regenerada | ${vertices} vértices | ${indices} polígonos`;
+                } catch (err) {
+                    console.error(err);
+                } finally {
+                    loadingDiv.style.display = 'none';
+                }
+            }
+        });
+
+        // Cambio de tipo de malla -> Regenerar malla y mostrar/ocultar perfil de inflado
+        document.getElementById('meshTypeSelector').addEventListener('change', async (e) => {
+            const val = e.target.value;
+            const inflationProfileGroup = document.getElementById('inflationProfileGroup');
+            if (val === 'inflated') {
+                inflationProfileGroup.style.display = 'block';
+            } else {
+                inflationProfileGroup.style.display = 'none';
+            }
+
+            if (currentImageFile) {
+                loadingDiv.style.display = 'flex';
+                try {
+                    const height = parseFloat(document.getElementById('heightSlider').value);
+                    const threshold = parseFloat(document.getElementById('thresholdSlider').value);
+                    const smoothness = parseFloat(document.getElementById('smoothSlider').value);
+                    
+                    const { mesh, vertices, indices } = await imageTo3DMesh(currentImageFile, height, threshold, smoothness);
+                    
+                    if (currentMesh) {
+                        scene.remove(currentMesh);
+                        if (currentMesh.geometry) currentMesh.geometry.dispose();
+                        if (currentMesh.material) currentMesh.material.dispose();
+                    }
+                    
+                    currentMesh = mesh;
+                    scene.add(currentMesh);
+                    polyCountSpan.innerText = indices;
+                    document.getElementById('stats').innerHTML = `✅ Malla regenerada | ${vertices} vértices | ${indices} polígonos`;
+                } catch (err) {
+                    alert("Error: " + err.message);
+                } finally {
+                    loadingDiv.style.display = 'none';
+                }
+            }
+        });
+
+        // Cambio de perfil de inflado -> Regenerar malla
+        document.getElementById('inflationProfileSelector').addEventListener('change', async () => {
+            if (currentImageFile && currentMesh) {
+                loadingDiv.style.display = 'flex';
+                try {
+                    const height = parseFloat(document.getElementById('heightSlider').value);
+                    const threshold = parseFloat(document.getElementById('thresholdSlider').value);
+                    const smoothness = parseFloat(document.getElementById('smoothSlider').value);
+                    
+                    const { mesh, vertices, indices } = await imageTo3DMesh(currentImageFile, height, threshold, smoothness);
+                    
+                    if (currentMesh) {
+                        scene.remove(currentMesh);
+                        if (currentMesh.geometry) currentMesh.geometry.dispose();
+                        if (currentMesh.material) currentMesh.material.dispose();
+                    }
+                    
+                    currentMesh = mesh;
+                    scene.add(currentMesh);
+                    polyCountSpan.innerText = indices;
+                    document.getElementById('stats').innerHTML = `✅ Malla regenerada | ${vertices} vértices | ${indices} polígonos`;
+                } catch (err) {
+                    alert("Error: " + err.message);
+                } finally {
+                    loadingDiv.style.display = 'none';
+                }
+            }
+        });
+
+        // Cambio de modo visual -> Actualizar material y colores sin regenerar
+        document.getElementById('visualModeSelector').addEventListener('change', (e) => {
+            const mode = e.target.value;
+            if (currentMesh && currentMesh.geometry && currentMesh.material) {
+                let texture = currentMesh.material.map;
+                if (!texture && currentMesh.material.userData && currentMesh.material.userData.originalTexture) {
+                    texture = currentMesh.material.userData.originalTexture;
+                } else if (texture) {
+                    currentMesh.material.userData.originalTexture = texture;
+                }
+                
+                updateVisualModeForGeometry(currentMesh.geometry, currentMesh.material, mode, texture);
+                document.getElementById('stats').innerHTML = `🎨 Visualización: ${e.target.options[e.target.selectedIndex].text}`;
+            }
+        });
+
+        // Aplicar Filtro Laplaciano (Denoise)
+        document.getElementById('laplacianFilterBtn').addEventListener('click', () => {
+            if (currentMesh && currentMesh.geometry) {
+                const lambda = parseFloat(document.getElementById('smoothSlider').value);
+                applyLaplacianSmoothing(currentMesh.geometry, lambda);
+                
+                const visualMode = document.getElementById('visualModeSelector').value;
+                if (visualMode !== 'textured' && visualMode !== 'wireframe') {
+                    const texture = currentMesh.material.map || currentMesh.material.userData.originalTexture;
+                    updateVisualModeForGeometry(currentMesh.geometry, currentMesh.material, visualMode, texture);
+                }
+                document.getElementById('stats').innerHTML = `🌀 Filtro Laplaciano aplicado (λ = ${lambda})`;
+            } else {
+                alert("Primero carga o genera un modelo 3D");
+            }
+        });
+
+        // Aplicar Filtro Bilateral (Preserva bordes)
+        document.getElementById('bilateralFilterBtn').addEventListener('click', () => {
+            if (currentMesh && currentMesh.geometry) {
+                const factor = parseFloat(document.getElementById('smoothSlider').value);
+                applyBilateralSmoothing(currentMesh.geometry, factor);
+                
+                const visualMode = document.getElementById('visualModeSelector').value;
+                if (visualMode !== 'textured' && visualMode !== 'wireframe') {
+                    const texture = currentMesh.material.map || currentMesh.material.userData.originalTexture;
+                    updateVisualModeForGeometry(currentMesh.geometry, currentMesh.material, visualMode, texture);
+                }
+                document.getElementById('stats').innerHTML = `📐 Filtro Bilateral aplicado (Factor = ${factor})`;
+            } else {
+                alert("Primero carga o genera un modelo 3D");
+            }
+        });
+        
+        // Helper to convert textures to blobs
+        function getTextureBlob(texture) {
+            return new Promise((resolve) => {
+                if (!texture || !texture.image) {
+                    resolve(null);
+                    return;
+                }
+                const img = texture.image;
+                if (img instanceof HTMLCanvasElement) {
+                    img.toBlob(resolve, 'image/png');
+                } else {
+                    const tempCanvas = document.createElement('canvas');
+                    tempCanvas.width = img.width || img.videoWidth || 256;
+                    tempCanvas.height = img.height || img.videoHeight || 256;
+                    const tempCtx = tempCanvas.getContext('2d');
+                    tempCtx.drawImage(img, 0, 0);
+                    tempCanvas.toBlob(resolve, 'image/png');
+                }
+            });
+        }
+
+        // Exportar OBJ + MTL con soporte de colores
+        function exportModel() {
+            if (!currentMesh || !currentMesh.geometry) {
+                alert("Primero genera un modelo 3D");
+                return;
+            }
+            
+            const exportFormat = document.getElementById('exportFormatSelector').value;
+            if (exportFormat === 'glb') {
+                loadingDiv.style.display = 'flex';
+                document.getElementById('stats').innerHTML = `📦 Preparando exportación GLB...`;
+                
+                import('https://unpkg.com/three@0.128.0/examples/jsm/exporters/GLTFExporter.js')
+                    .then(({ GLTFExporter }) => {
+                        const exporter = new GLTFExporter();
+                        exporter.parse(currentMesh, (gltf) => {
+                            loadingDiv.style.display = 'none';
+                            const blob = new Blob([gltf], { type: 'application/octet-stream' });
+                            const link = document.createElement('a');
+                            link.href = URL.createObjectURL(blob);
+                            link.download = `modelo_3d_${Date.now()}.glb`;
+                            link.click();
+                            URL.revokeObjectURL(link.href);
+                            document.getElementById('stats').innerHTML = `✅ Exportado a GLB con éxito`;
+                        }, (error) => {
+                            loadingDiv.style.display = 'none';
+                            alert("Error al exportar a GLB: " + error.message);
+                        }, {
+                            binary: true
+                        });
+                    })
+                    .catch((err) => {
+                        loadingDiv.style.display = 'none';
+                        alert("No se pudo cargar el exportador GLB: " + err.message);
+                    });
+                return;
+            }
+            
+            const geom = currentMesh.geometry;
+            const positions = geom.attributes.position.array;
+            const indices = geom.index ? geom.index.array : null;
+            const uvs = geom.attributes.uv ? geom.attributes.uv.array : null;
+            const colors = geom.attributes.color ? geom.attributes.color.array : null;
+            const normals = geom.attributes.normal ? geom.attributes.normal.array : null;
+            
+            // OBJ
+            let objContent = "# Modelo 3D real generado desde imagen con colores y normales de iheartmesh\n";
+            objContent += "o Imagen3D\n";
+            
+            for (let i = 0; i < positions.length; i += 3) {
+                const idx = i / 3;
+                if (colors) {
+                    objContent += `v ${positions[i].toFixed(5)} ${positions[i+1].toFixed(5)} ${positions[i+2].toFixed(5)} ${colors[idx*3].toFixed(4)} ${colors[idx*3+1].toFixed(4)} ${colors[idx*3+2].toFixed(4)}\n`;
+                } else {
+                    objContent += `v ${positions[i].toFixed(5)} ${positions[i+1].toFixed(5)} ${positions[i+2].toFixed(5)}\n`;
+                }
+            }
+            
+            if (uvs) {
+                const itemSize = geom.attributes.uv.itemSize || 2;
+                for (let i = 0; i < uvs.length; i += itemSize) {
+                    objContent += `vt ${uvs[i].toFixed(5)} ${uvs[i+1].toFixed(5)}\n`;
+                }
+            }
+            
+            if (normals && !colors) {
+                for (let i = 0; i < normals.length; i += 3) {
+                    objContent += `vn ${normals[i].toFixed(5)} ${normals[i+1].toFixed(5)} ${normals[i+2].toFixed(5)}\n`;
+                }
+            }
+            
+            objContent += "s off\n";
+            objContent += "usemtl material_textura\n";
+            
+            const numFaces = indices ? indices.length : positions.length / 3;
+            for (let i = 0; i < numFaces; i += 3) {
+                const i1 = indices ? (indices[i] + 1) : i + 1;
+                const i2 = indices ? (indices[i+1] + 1) : i + 2;
+                const i3 = indices ? (indices[i+2] + 1) : i + 3;
+                
+                if (uvs && normals && !colors) {
+                    objContent += `f ${i1}/${i1}/${i1} ${i2}/${i2}/${i2} ${i3}/${i3}/${i3}\n`;
+                } else if (uvs) {
+                    objContent += `f ${i1}/${i1} ${i2}/${i2} ${i3}/${i3}\n`;
+                } else if (normals && !colors) {
+                    objContent += `f ${i1}//${i1} ${i2}//${i2} ${i3}//${i3}\n`;
+                } else {
+                    objContent += `f ${i1} ${i2} ${i3}\n`;
+                }
+            }
+            
+            // MTL
+            const mtlContent = `# Material para modelo 3D
+newmtl material_textura
+Ka 1.000 1.000 1.000
+Kd 1.000 1.000 1.000
+Ks 0.200 0.200 0.200
+d 1.0
+illum 2
+${colors ? "" : "map_Kd textura.png\nbump -bm 1.0 textura_normal.png\nmap_Pr textura_roughness.png"}
+`;
+            
+            // Crear ZIP
+            const zip = new JSZip();
+            zip.file("modelo.obj", objContent);
+            zip.file("modelo.mtl", mtlContent);
+            
+            const map = currentMesh.material.map || currentMesh.material.userData.originalTexture;
+            const normalMap = currentMesh.material.normalMap || currentMesh.material.userData.originalNormalMap;
+            const roughnessMap = currentMesh.material.roughnessMap || currentMesh.material.userData.originalRoughnessMap;
+            
+            // Capturar textura actual (solo si no estamos usando colores de curvatura en OBJ)
+            if (!colors && map) {
+                loadingDiv.style.display = 'flex';
+                document.getElementById('stats').innerHTML = `📦 Preparando texturas PBR...`;
+                
+                Promise.all([
+                    getTextureBlob(map),
+                    getTextureBlob(normalMap),
+                    getTextureBlob(roughnessMap)
+                ]).then(([albedoBlob, normalBlob, roughnessBlob]) => {
+                    if (albedoBlob) zip.file("textura.png", albedoBlob);
+                    if (normalBlob) zip.file("textura_normal.png", normalBlob);
+                    if (roughnessBlob) zip.file("textura_roughness.png", roughnessBlob);
+                    
+                    zip.generateAsync({ type: "blob" }).then((zipBlob) => {
+                        loadingDiv.style.display = 'none';
+                        const link = document.createElement('a');
+                        link.href = URL.createObjectURL(zipBlob);
+                        link.download = `modelo_3d_${Date.now()}.zip`;
+                        link.click();
+                        URL.revokeObjectURL(link.href);
+                        document.getElementById('stats').innerHTML = `✅ Exportado a ZIP con éxito`;
+                    });
+                }).catch((err) => {
+                    loadingDiv.style.display = 'none';
+                    alert("Error al guardar texturas: " + err.message);
+                });
+            } else {
+                zip.generateAsync({ type: "blob" }).then((zipBlob) => {
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(zipBlob);
+                    link.download = `modelo_3d_${Date.now()}.zip`;
+                    link.click();
+                    URL.revokeObjectURL(link.href);
+                });
+            }
+        }
+        
+        document.getElementById('exportBtn').addEventListener('click', exportModel);
+        document.getElementById('downloadBtn').addEventListener('click', () => {
+            exportModel();
+            modal.style.display = 'none';
+        });
+        document.getElementById('closeModalBtn').addEventListener('click', () => {
+            modal.style.display = 'none';
+        });
+        
+        // Imagen demo por defecto (un cubo/letra para mostrar)
+        function loadDemoImage() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#4c1d95';
+            ctx.fillRect(0, 0, 256, 256);
+            ctx.fillStyle = '#c084fc';
+            ctx.font = 'bold 80px Arial';
+            ctx.fillText("3D", 60, 160);
+            ctx.fillStyle = '#e9d5ff';
+            ctx.font = '30px Arial';
+            ctx.fillText("MESH", 80, 220);
+            
+            canvas.toBlob(blob => {
+                const demoFile = new File([blob], "demo.png", { type: "image/png" });
+                setTimeout(async () => {
+                    currentImageFile = demoFile;
+                    loadingDiv.style.display = 'flex';
+                    try {
+                        const { mesh, vertices, indices } = await imageTo3DMesh(demoFile, 0.6, 100, 0.5);
+                        currentMesh = mesh;
+                        scene.add(currentMesh);
+                        polyCountSpan.innerText = indices;
+                        loadingDiv.style.display = 'none';
+                        document.getElementById('stats').innerHTML = `✅ Demo cargada | ${vertices} vértices | ${indices} polígonos`;
+                    } catch (err) {
+                        loadingDiv.style.display = 'none';
+                    }
+                }, 500);
+            }, 'image/png');
+        }
+        
+        loadDemoImage();
+        
+        // Animación
+        function animate() {
+            requestAnimationFrame(animate);
+            if (!isDragging && currentMesh) {
+                // Auto-rotate muy sutil si no se interactúa
+                cameraTheta += 0.002;
+                updateCameraPosition();
+            }
+            renderer.render(scene, camera);
+        }
+        animate();
+        
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        // Drag & drop
+        document.body.addEventListener('dragover', (e) => e.preventDefault());
+        document.body.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                fileInput.files = e.dataTransfer.files;
+                fileInput.dispatchEvent(new Event('change'));
+            }
+        });
+        
+        // Cargar JSZip desde CDN
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+        document.head.appendChild(script);
+        
+        console.log("✅ Real 3D Mesh Generator listo - Conversión real de imágenes a modelos 3D");
+    </script>
+</body>
+</html>
