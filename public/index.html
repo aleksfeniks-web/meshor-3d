@@ -350,6 +350,97 @@
             border-bottom: 1px solid rgba(168, 85, 247, 0.2);
             padding-bottom: 4px;
         }
+        .text-input {
+            width: 100%;
+            background: rgba(30, 20, 50, 0.85);
+            border: 1px solid rgba(168, 85, 247, 0.4);
+            color: #e9d5ff;
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            outline: none;
+            transition: all 0.3s;
+            margin-top: 4px;
+        }
+        .text-input:focus {
+            border-color: #c084fc;
+            box-shadow: 0 0 10px rgba(168, 85, 247, 0.4);
+        }
+        .text-input::placeholder {
+            color: rgba(233, 213, 255, 0.35);
+        }
+        .mode-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: bold;
+        }
+        .mode-local {
+            background: rgba(34, 197, 94, 0.2);
+            color: #86efac;
+            border: 1px solid rgba(34, 197, 94, 0.4);
+        }
+        .mode-cloud {
+            background: rgba(59, 130, 246, 0.2);
+            color: #93c5fd;
+            border: 1px solid rgba(59, 130, 246, 0.4);
+        }
+        .progress-bar-container {
+            width: 100%;
+            height: 4px;
+            background: rgba(168, 85, 247, 0.2);
+            border-radius: 4px;
+            margin-top: 12px;
+            overflow: hidden;
+            display: none;
+        }
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #7c3aed, #a855f7, #c084fc);
+            border-radius: 4px;
+            width: 0%;
+            transition: width 0.5s ease;
+            animation: progressPulse 1.5s ease-in-out infinite;
+        }
+        @keyframes progressPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        .replicate-section {
+            background: rgba(59, 130, 246, 0.08);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            border-radius: 16px;
+            padding: 12px;
+            margin-top: 8px;
+        }
+        .btn-ai {
+            width: 100%;
+            background: linear-gradient(135deg, #2563eb, #3b82f6);
+            border: none;
+            color: white;
+            padding: 12px;
+            border-radius: 40px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .btn-ai:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
+        }
+        .btn-ai:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
 
         @media (max-width: 768px) {
             .control-panel { bottom: 16px; right: 16px; padding: 12px; min-width: 200px; }
@@ -367,7 +458,7 @@
             <div class="logo-icon">🔮</div>
             <h1>REAL 3D MESH</h1>
         </div>
-        <div class="badge">⚡ Conversor real de imágenes a modelos 3D</div>
+        <div class="badge" id="modeBadge">⚡ Modo Local — Extrusión geométrica</div>
     </div>
  
     <div class="upload-area" id="uploadArea">
@@ -377,9 +468,44 @@
         <input type="file" id="fileInput" accept="image/*" style="display: none;">
     </div>
  
-    <div class="control-panel" style="min-width: 300px;">
+    <div class="control-panel" style="min-width: 300px; max-height: calc(100vh - 140px); overflow-y: auto;">
         <h3>🎮 Controles del modelo 3D</h3>
         
+        <div class="section-title">0. Modo de Generación</div>
+        <div class="control-group">
+            <label>🤖 Motor de generación</label>
+            <select id="generationModeSelector">
+                <option value="local" selected>⚡ Local (Extrusión geométrica)</option>
+                <option value="replicate">🧠 IA Cloud (Replicate - TripoSR)</option>
+            </select>
+        </div>
+        <div id="replicateConfigSection" class="replicate-section" style="display:none;">
+            <div class="control-group" style="margin-bottom:8px;">
+                <label>🔑 API Token de Replicate</label>
+                <input type="password" id="replicateApiToken" class="text-input" placeholder="r8_..." autocomplete="off">
+            </div>
+            <div class="control-group" style="margin-bottom:8px;">
+                <label>📐 Resolución de malla</label>
+                <select id="replicateMcResolution">
+                    <option value="128">128 (Rápido)</option>
+                    <option value="256" selected>256 (Balanceado)</option>
+                </select>
+            </div>
+            <div class="control-group" style="margin-bottom:0;">
+                <label>🎭 Quitar fondo (IA)</label>
+                <select id="replicateRemoveBg">
+                    <option value="true" selected>Sí (Recomendado)</option>
+                    <option value="false">No</option>
+                </select>
+            </div>
+            <button class="btn-ai" id="replicateGenerateBtn" disabled>🧠 Generar con IA</button>
+            <div class="progress-bar-container" id="replicateProgress">
+                <div class="progress-bar" id="replicateProgressBar"></div>
+            </div>
+            <p style="color:#93c5fd; font-size:0.65rem; margin-top:6px; text-align:center;" id="replicateStatus"></p>
+        </div>
+
+        <div id="localControlsSection">
         <div class="section-title">1. Generación de Malla</div>
         <div class="control-group">
             <label>🧬 Tipo de malla</label>
@@ -423,6 +549,7 @@
             <label>🔍 Umbral de detección <span id="thresholdValue">100</span></label>
             <input type="range" id="thresholdSlider" min="0" max="255" step="1" value="100">
         </div>
+        </div>
 
         <div class="section-title">2. Filtros de Procesamiento</div>
         <div class="control-group" id="smoothnessGroup">
@@ -461,8 +588,8 @@
 
     <div class="loading-overlay" id="loading">
         <div class="spinner"></div>
-        <p>🔄 Generando malla 3D real...</p>
-        <p style="font-size: 0.8rem; margin-top: 8px;">Analizando contornos y creando geometría</p>
+        <p id="loadingTitle">🔄 Generando malla 3D real...</p>
+        <p style="font-size: 0.8rem; margin-top: 8px;" id="loadingSubtitle">Analizando contornos y creando geometría</p>
     </div>
 
     <div class="modal" id="modal">
@@ -487,6 +614,94 @@
 
     <script type="module">
         import * as THREE from 'three';
+
+        // ==========================================
+        // Replicate IA Cloud Integration
+        // ==========================================
+        const REPLICATE_MODEL = 'aleksfeniks-web/2dto3d';
+        const REPLICATE_API_BASE = '/api/replicate';
+
+        // Load saved API token from localStorage
+        const savedToken = localStorage.getItem('replicate_api_token') || '';
+        
+        // GLTFLoader for loading 3D models from Replicate
+        class SimpleGLTFLoader {
+            async load(url) {
+                const response = await fetch(url);
+                const arrayBuffer = await response.arrayBuffer();
+                const { GLTFLoader } = await import('https://unpkg.com/three@0.128.0/examples/jsm/loaders/GLTFLoader.js');
+                const loader = new GLTFLoader();
+                return new Promise((resolve, reject) => {
+                    loader.parse(arrayBuffer, '', (gltf) => resolve(gltf), (err) => reject(err));
+                });
+            }
+        }
+        const gltfLoader = new SimpleGLTFLoader();
+
+        function fileToDataURL(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        async function replicateCreatePrediction(token, imageDataUrl, mcResolution, removeBg) {
+            // Use Replicate proxy-friendly approach
+            const response = await fetch(`${REPLICATE_API_BASE}/models/${REPLICATE_MODEL}/predictions`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    input: {
+                        image: imageDataUrl,
+                        output_format: 'glb',
+                        do_remove_background: removeBg,
+                        mc_resolution: parseInt(mcResolution),
+                        foreground_ratio: 0.85
+                    }
+                })
+            });
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.detail || `API error: ${response.status}`);
+            }
+            return response.json();
+        }
+
+        async function replicatePollPrediction(token, predictionUrl) {
+            // Rewrite absolute Replicate URL to use our local proxy to avoid CORS
+            const localUrl = predictionUrl.replace('https://api.replicate.com/v1', '/api/replicate');
+            const maxPolls = 120; // 2 minutes max
+            for (let i = 0; i < maxPolls; i++) {
+                const response = await fetch(localUrl, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const prediction = await response.json();
+                
+                if (prediction.status === 'succeeded') return prediction;
+                if (prediction.status === 'failed' || prediction.status === 'canceled') {
+                    throw new Error(prediction.error || 'Prediction failed');
+                }
+                
+                // Update progress
+                const pct = Math.min(90, (i / maxPolls) * 100 + 10);
+                updateReplicateProgress(pct, `Estado: ${prediction.status}...`);
+                
+                await new Promise(r => setTimeout(r, 1000));
+            }
+            throw new Error('Prediction timed out');
+        }
+
+        function updateReplicateProgress(pct, statusText) {
+            const bar = document.getElementById('replicateProgressBar');
+            const status = document.getElementById('replicateStatus');
+            if (bar) bar.style.width = pct + '%';
+            if (status) status.textContent = statusText;
+        }
 
         // --- Configuración de la escena 3D ---
         const canvas = document.getElementById('canvas3d');
@@ -2359,11 +2574,169 @@ ${colors ? "" : "map_Kd textura.png\nbump -bm 1.0 textura_normal.png\nmap_Pr tex
         });
         
         // Cargar JSZip desde CDN
-        const script = document.createElement('script');
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
-        document.head.appendChild(script);
+        const scriptJSZip = document.createElement('script');
+        scriptJSZip.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+        document.head.appendChild(scriptJSZip);
+
+        // ==========================================
+        // Replicate Integration — UI Logic
+        // ==========================================
+        const genModeSelector = document.getElementById('generationModeSelector');
+        const replicateSection = document.getElementById('replicateConfigSection');
+        const localControls = document.getElementById('localControlsSection');
+        const replicateTokenInput = document.getElementById('replicateApiToken');
+        const replicateGenBtn = document.getElementById('replicateGenerateBtn');
+        const replicateProgressDiv = document.getElementById('replicateProgress');
+        const modeBadge = document.getElementById('modeBadge');
+
+        // Restore saved token
+        if (savedToken) replicateTokenInput.value = savedToken;
+
+        // Toggle mode
+        genModeSelector.addEventListener('change', (e) => {
+            const isCloud = e.target.value === 'replicate';
+            replicateSection.style.display = isCloud ? 'block' : 'none';
+            localControls.style.display = isCloud ? 'none' : 'block';
+            modeBadge.textContent = isCloud ? '🧠 Modo IA Cloud — Replicate TripoSR' : '⚡ Modo Local — Extrusión geométrica';
+            modeBadge.className = isCloud ? 'badge mode-indicator mode-cloud' : 'badge mode-indicator mode-local';
+        });
+
+        // Save token on change
+        replicateTokenInput.addEventListener('input', (e) => {
+            localStorage.setItem('replicate_api_token', e.target.value.trim());
+            checkReplicateBtn();
+        });
+
+        // Enable generate button when image is loaded and token is present
+        const checkReplicateBtn = () => {
+            replicateGenBtn.disabled = !replicateTokenInput.value.trim() || !currentImageFile;
+        };
+
+        // Hook into file upload to enable AI button
+        fileInput.addEventListener('change', checkReplicateBtn);
         
+        // Also check on drag-and-drop or demo load by observing stats/currentImageFile changes
+        new MutationObserver(checkReplicateBtn).observe(document.getElementById('stats'), { childList: true, characterData: true, subtree: true });
+
+        // Run check initially
+        checkReplicateBtn();
+
+        // Replicate Generate Button
+        replicateGenBtn.addEventListener('click', async () => {
+            if (!currentImageFile) {
+                alert('Primero sube una imagen');
+                return;
+            }
+            const token = replicateTokenInput.value.trim();
+            if (!token) {
+                alert('Ingresa tu API Token de Replicate');
+                return;
+            }
+
+            const mcRes = document.getElementById('replicateMcResolution').value;
+            const removeBg = document.getElementById('replicateRemoveBg').value === 'true';
+
+            // Show progress
+            replicateGenBtn.disabled = true;
+            replicateProgressDiv.style.display = 'block';
+            updateReplicateProgress(5, '📤 Enviando imagen a Replicate...');
+            document.getElementById('loadingTitle').textContent = '🧠 Procesando con IA en la nube...';
+            document.getElementById('loadingSubtitle').textContent = 'TripoSR está reconstruyendo la geometría 3D';
+            loadingDiv.style.display = 'flex';
+            document.getElementById('stats').innerHTML = '🧠 Enviando a Replicate IA...';
+
+            try {
+                // Convert file to data URL
+                const dataUrl = await fileToDataURL(currentImageFile);
+                updateReplicateProgress(15, '🧠 Creando predicción...');
+
+                // Create prediction
+                let prediction = await replicateCreatePrediction(token, dataUrl, mcRes, removeBg);
+                updateReplicateProgress(25, `Estado: ${prediction.status}...`);
+
+                // If not completed yet (no Prefer:wait support), poll
+                if (prediction.status !== 'succeeded') {
+                    const pollUrl = prediction.urls?.get || `${REPLICATE_API_BASE}/predictions/${prediction.id}`;
+                    prediction = await replicatePollPrediction(token, pollUrl);
+                }
+
+                updateReplicateProgress(95, '📦 Cargando modelo 3D...');
+
+                // Get the output URL (GLB file)
+                const outputUrl = typeof prediction.output === 'string' ? prediction.output : prediction.output?.[0] || prediction.output;
+                if (!outputUrl) throw new Error('No output received from model');
+
+                // Load GLB into Three.js scene
+                const gltf = await gltfLoader.load(outputUrl);
+                const importedMesh = gltf.scene;
+
+                // Remove existing mesh
+                if (currentMesh) {
+                    scene.remove(currentMesh);
+                    if (currentMesh.geometry) currentMesh.geometry.dispose();
+                    if (currentMesh.material) {
+                        if (Array.isArray(currentMesh.material)) {
+                            currentMesh.material.forEach(m => m.dispose());
+                        } else {
+                            currentMesh.material.dispose();
+                        }
+                    }
+                }
+
+                // Normalize scale and center
+                const box = new THREE.Box3().setFromObject(importedMesh);
+                const size = box.getSize(new THREE.Vector3());
+                const maxDim = Math.max(size.x, size.y, size.z);
+                const scale = 2.0 / maxDim;
+                importedMesh.scale.set(scale, scale, scale);
+
+                const boxScaled = new THREE.Box3().setFromObject(importedMesh);
+                const center = boxScaled.getCenter(new THREE.Vector3());
+                importedMesh.position.sub(center);
+                importedMesh.position.y += 0.3;
+
+                // Enable shadows
+                importedMesh.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                    }
+                });
+
+                currentMesh = importedMesh;
+                scene.add(currentMesh);
+
+                // Count geometry stats
+                let totalVerts = 0, totalFaces = 0;
+                importedMesh.traverse((child) => {
+                    if (child.isMesh && child.geometry) {
+                        totalVerts += child.geometry.attributes.position.count;
+                        totalFaces += child.geometry.index ? child.geometry.index.count / 3 : child.geometry.attributes.position.count / 3;
+                    }
+                });
+
+                updateReplicateProgress(100, '✅ ¡Modelo 3D generado con IA!');
+                document.getElementById('stats').innerHTML = `🧠 IA Cloud | ${totalVerts} vértices | ${Math.round(totalFaces)} polígonos`;
+                polyCountSpan.innerText = Math.round(totalFaces);
+                loadingDiv.style.display = 'none';
+                modal.style.display = 'flex';
+
+            } catch (err) {
+                console.error('Replicate error:', err);
+                updateReplicateProgress(0, `❌ Error: ${err.message}`);
+                document.getElementById('stats').innerHTML = `❌ Error de IA: ${err.message}`;
+                loadingDiv.style.display = 'none';
+                alert('Error con Replicate: ' + err.message);
+            } finally {
+                replicateGenBtn.disabled = false;
+                // Reset loading text for local mode
+                document.getElementById('loadingTitle').textContent = '🔄 Generando malla 3D real...';
+                document.getElementById('loadingSubtitle').textContent = 'Analizando contornos y creando geometría';
+            }
+        });
+
         console.log("✅ Real 3D Mesh Generator listo - Conversión real de imágenes a modelos 3D");
+        console.log("🧠 Integración con Replicate (aleksfeniks-web/2dto3d) activada");
     </script>
 </body>
 </html>
