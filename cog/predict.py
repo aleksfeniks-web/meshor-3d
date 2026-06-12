@@ -18,21 +18,6 @@ from PIL import Image
 # Ensure local tsr folder is importable
 sys.path.append(os.path.abspath("."))
 
-# Dynamic runtime patch to replace compiled torchmcubes with scikit-image
-try:
-    import tsr.models.isosurface
-    def marching_cubes_skimage(level_tensor, threshold=0.0):
-        from skimage import measure
-        import torch
-        level_np = level_tensor.detach().cpu().numpy()
-        verts, faces, _, _ = measure.marching_cubes(level_np, level=threshold)
-        v_pos = torch.from_numpy(verts.copy()).float()
-        t_pos_idx = torch.from_numpy(faces.copy()).long()
-        return v_pos, t_pos_idx
-    tsr.models.isosurface.marching_cubes = marching_cubes_skimage
-    print("✅ Successfully patched TripoSR marching_cubes to use scikit-image")
-except Exception as e:
-    print(f"⚠️ Failed to patch marching_cubes: {e}")
 
 
 class Predictor(BasePredictor):
